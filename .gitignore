@@ -31,3 +31,6 @@ Thumbs.db
 # Application
 application-local.yml
 application-dev.yml
+
+# Environment variables（包含敏感信息）
+.env
