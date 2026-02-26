@@ -1,0 +1,44 @@
+# LangChain4j 配置
+langchain4j:
+  # 使用的模型提供商：zhipu（智谱AI）或 openai
+  provider: ${LANGCHAIN4J_PROVIDER:zhipu}
+
+  # 智谱 AI 配置（推荐使用，有免费额度）
+  zhipu:
+    # 智谱 AI API Key（从 https://open.bigmodel.cn/ 获取）
+    api-key: ${ZHIPU_API_KEY:caba99d2c56645018cf39d298f580a61.4T5FJfH9FbYSIVRy}
+    # 模型名称：glm-4（最新）、glm-4-flash（快速）、glm-3-turbo
+    model-name: ${ZHIPU_MODEL:glm-4-flash}
+    temperature: ${ZHIPU_TEMPERATURE:0.7}
+    max-tokens: ${ZHIPU_MAX_TOKENS:1000}
+    timeout: ${ZHIPU_TIMEOUT:60}
+
+  # OpenAI 配置（如需使用 OpenAI，请配置此项）
+  openai:
+    # OpenAI API Key
+    api-key: ${OPENAI_API_KEY:your-api-key-here}
+    # 模型名称
+    model-name: ${OPENAI_MODEL:gpt-3.5-turbo}
+    # 温度参数（0-1，越高越随机）
+    temperature: ${OPENAI_TEMPERATURE:0.7}
+    # 最大 tokens 数
+    max-tokens: ${OPENAI_MAX_TOKENS:1000}
+    # 超时时间（秒）
+    timeout: ${OPENAI_TIMEOUT:60}
+
+# 服务配置
+server:
+  port: 8080
+  # Tomcat 编码配置
+  tomcat:
+    uri-encoding: UTF-8
+
+# Spring 配置
+spring:
+  # HTTP 编码配置
+  http:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
