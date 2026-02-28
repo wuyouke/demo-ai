@@ -2,8 +2,11 @@ package com.example.demo_ai.service;
 
 import com.example.demo_ai.model.ChatRequest;
 import com.example.demo_ai.model.ChatResponse;
+import com.example.demo_ai.tools.ImageToolManager;
 import com.example.demo_ai.tools.TouristAttractionToolManager;
 import com.example.demo_ai.tools.WeatherToolManager;
+import dev.langchain4j.data.message.ImageContent;
+import dev.langchain4j.data.message.TextContent;
 import dev.langchain4j.memory.ChatMemory;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatLanguageModel;
@@ -11,10 +14,10 @@ import dev.langchain4j.model.chat.StreamingChatLanguageModel;
 import dev.langchain4j.service.AiServices;
 import dev.langchain4j.service.MemoryId;
 import dev.langchain4j.service.TokenStream;
-import dev.langchain4j.service.UserMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -36,7 +39,12 @@ public class ConversationService {
     private ChatLanguageModel chatLanguageModel;
 
     @Autowired
+    @Qualifier("streamingChatLanguageModel")
     private StreamingChatLanguageModel streamingChatLanguageModel;
+
+    @Autowired
+    @Qualifier("visionStreamingChatLanguageModel")
+    private StreamingChatLanguageModel visionStreamingChatLanguageModel;
 
     @Autowired
     private WeatherToolManager weatherToolManager;
@@ -44,22 +52,47 @@ public class ConversationService {
     @Autowired
     private TouristAttractionToolManager touristAttractionToolManager;
 
+    @Autowired
+    private ImageToolManager imageToolManager;
+
     /**
      * 记忆助手接口（带记忆ID）
      */
     public interface MemoryAssistant {
-        String chat(@MemoryId String memoryId, @UserMessage String userMessage);
+        String chat(@MemoryId String memoryId, @dev.langchain4j.service.UserMessage String userMessage);
     }
 
     /**
      * 流式记忆助手接口
      */
     public interface StreamingMemoryAssistant {
-        TokenStream chat(@MemoryId String memoryId, @UserMessage String userMessage);
+        TokenStream chat(@MemoryId String memoryId, @dev.langchain4j.service.UserMessage String userMessage);
+    }
+
+    /**
+     * 视觉流式记忆助手接口
+     */
+    @dev.langchain4j.service.SystemMessage("你是一个精确的图像分析AI助手。\n" +
+            "【重要指示】\n" +
+            "1. 当用户要求计数时（如'几个人'、'几只狗'、'多少人'等），必须:\n" +
+            "   - 🔍 FIRST: 仔细逐一识别图像中的每一个对象，包括部分可见的对象\n" +
+            "   - 📝 THEN: 明确列举出所有识别的对象及其位置\n" +
+            "     例如: '我看到：左后位置的中年男性、中年女性、中间的女孩、左前的女孩、中间偏右的女孩、右侧的女孩、右前的女孩、右后的女孩、最右侧的女孩'\n" +
+            "   - ✅ FINALLY: 给出准确的总数\n" +
+            "   - 重点关注：所有头部可见或部分可见的人物都应该被计数\n" +
+            "   - 注意：不要遗漏背景中或边缘的人物\n" +
+            "\n" +
+            "2. 描述图像内容时要详细准确，特别是人物数量\n" +
+            "3. 记住用户提供的个人信息和历史上下文\n" +
+            "4. 如果用户要求生成图片，请使用generateImage工具\n" +
+            "5. 对于其他查询（天气、景点），使用相应工具帮助用户")
+    public interface VisionStreamingMemoryAssistant {
+        TokenStream chat(@MemoryId String memoryId, @dev.langchain4j.service.UserMessage String userMessage);
     }
 
     private MemoryAssistant assistant;
     private StreamingMemoryAssistant streamingAssistant;
+    private VisionStreamingMemoryAssistant visionStreamingAssistant;
 
     /**
      * 聊天记忆存储（按 memoryId 组织）
@@ -94,6 +127,23 @@ public class ConversationService {
             "例如：如果用户说'我是谁'，你应该回答用户的名字和目的地（如果已知）。\n" +
             "始终保持对话的连贯性和上下文的完整性。";
 
+    /**
+     * 视觉模型系统提示（用于图片分析任务）
+     */
+    private static final String VISION_SYSTEM_PROMPT =
+            "你是一个精确的图像分析AI助手。\n" +
+            "【重要指示】\n" +
+            "1. 当用户要求计数（如'几个人'、'几只狗'）时，必须:\n" +
+            "   - 仔细逐个识别和计数图像中的对象\n" +
+            "   - 在回答前明确列举出所有识别的对象（如'我看到：父亲、母亲、孩子1、孩子2、孩子3，共5人'）\n" +
+            "   - 确保计数准确无误后再给出最终答案\n" +
+            "   - 如果有不确定的对象，要说明理由\n" +
+            "\n" +
+            "2. 描述图像内容时要详细准确\n" +
+            "3. 记住用户提供的个人信息和历史上下文\n" +
+            "4. 如果用户要求生成图片，请使用generateImage工具\n" +
+            "5. 对于其他查询（天气、景点），使用相应工具帮助用户";
+
     @PostConstruct
     public void init() {
         // 创建带记忆 Provider 的 Assistant (阻塞式)
@@ -108,7 +158,7 @@ public class ConversationService {
                     }
                     return memoryMap.get(memoryId);
                 })
-                .tools(weatherToolManager, touristAttractionToolManager)
+                .tools(weatherToolManager, touristAttractionToolManager, imageToolManager)
                 .build();
 
         // 创建带记忆 Provider 的 Streaming Assistant (流式)
@@ -122,16 +172,30 @@ public class ConversationService {
                     }
                     return memoryMap.get(memoryId);
                 })
-                .tools(weatherToolManager, touristAttractionToolManager)
+                .tools(weatherToolManager, touristAttractionToolManager, imageToolManager)
                 .build();
 
-        logger.info("ConversationService 初始化完成，支持多轮对话和上下文保持 (包含流式输出)");
+        // 创建带记忆 Provider 的 Vision Streaming Assistant (视觉流式，支持工具)
+        this.visionStreamingAssistant = AiServices.builder(VisionStreamingMemoryAssistant.class)
+                .streamingChatLanguageModel(visionStreamingChatLanguageModel)
+                .chatMemoryProvider(memoryId -> {
+                    if (!memoryMap.containsKey(memoryId)) {
+                        memoryMap.put(memoryId, MessageWindowChatMemory.builder()
+                                .maxMessages(MAX_MESSAGES)
+                                .build());
+                    }
+                    return memoryMap.get(memoryId);
+                })
+                .tools(weatherToolManager, touristAttractionToolManager, imageToolManager)
+                .build();
+
+        logger.info("ConversationService 初始化完成，支持多轮对话和上下文保持 (包含流式输出和视觉能力)");
     }
 
     /**
      * 流式发送消息
      */
-    public TokenStream streamChat(String message, String sessionId, String userId) {
+    public TokenStream streamChat(String message, String sessionId, String userId, String imageBase64) {
         // 如果会话 ID 为空，生成新的
         if (sessionId == null || sessionId.isEmpty()) {
             sessionId = UUID.randomUUID().toString();
@@ -149,6 +213,50 @@ public class ConversationService {
 
         logger.info("流式会话 [{}]: {}", sessionId, message);
 
+        // 检查是否包含图片，或者是否在询问关于图片的问题
+        boolean hasImage = imageBase64 != null && !imageBase64.isEmpty();
+        boolean isAskingAboutImage = message != null && (
+                message.contains("图片") || message.contains("图中") ||
+                message.contains("这张图") || message.contains("看这") ||
+                message.contains("狗") || message.contains("几只")
+        );
+
+        // 如果包含图片，或者可能在询问历史图片，使用视觉模型
+        if (hasImage || isAskingAboutImage) {
+            logger.info("使用视觉模型处理 (hasImage: {}, isAskingAboutImage: {})", hasImage, isAskingAboutImage);
+
+            if (hasImage) {
+                // 如果有图片，先将多模态消息添加到记忆中
+                ChatMemory memory = memoryMap.computeIfAbsent(sessionId, k ->
+                    MessageWindowChatMemory.builder().maxMessages(MAX_MESSAGES).build()
+                );
+
+                // 构建多模态消息并添加到记忆
+                dev.langchain4j.data.message.UserMessage userMessage;
+                if (imageBase64.startsWith("data:image")) {
+                    String base64Data = imageBase64.substring(imageBase64.indexOf(",") + 1);
+                    String mimeType = imageBase64.substring(5, imageBase64.indexOf(";"));
+                    userMessage = dev.langchain4j.data.message.UserMessage.from(
+                        TextContent.from(message),
+                        ImageContent.from(base64Data, mimeType)
+                    );
+                } else {
+                    userMessage = dev.langchain4j.data.message.UserMessage.from(
+                        TextContent.from(message),
+                        ImageContent.from(imageBase64, "image/jpeg")
+                    );
+                }
+                memory.add(userMessage);
+
+                // 然后通过视觉助手处理（它会看到记忆中的图片）
+                return visionStreamingAssistant.chat(sessionId, message);
+            } else {
+                // 纯文本但查询图片内容，使用视觉助手
+                return visionStreamingAssistant.chat(sessionId, message);
+            }
+        }
+
+        // 纯文本对话，使用带工具的 Assistant
         return streamingAssistant.chat(sessionId, message);
     }
 

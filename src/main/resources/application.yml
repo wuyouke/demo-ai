@@ -19,6 +19,8 @@ langchain4j:
     api-key: ${ZHIPU_API_KEY:}
     # 模型名称：glm-4（最新）、glm-4-flash（快速）、glm-3-turbo
     model-name: ${ZHIPU_MODEL:glm-4-flash}
+    # 视觉模型名称：专门用于处理图片理解任务
+    vision-model-name: ${ZHIPU_VISION_MODEL:glm-4v-plus}
     temperature: ${ZHIPU_TEMPERATURE:0.7}
     max-tokens: ${ZHIPU_MAX_TOKENS:1000}
     timeout: ${ZHIPU_TIMEOUT:60}

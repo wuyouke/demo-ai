@@ -42,6 +42,9 @@ public class LangChain4jConfig {
     @Value("${langchain4j.zhipu.timeout:60}")
     private Integer zhipuTimeout;
 
+    @Value("${langchain4j.zhipu.vision-model-name:glm-4v-plus}")
+    private String zhipuVisionModelName;
+
     // OpenAI 配置
     @Value("${langchain4j.openai.api-key:}")
     private String openaiApiKey;
@@ -90,18 +93,28 @@ public class LangChain4jConfig {
 
         switch (provider.toLowerCase()) {
             case "zhipu":
-                return createZhipuStreamingModel();
+                return createZhipuStreamingModel(zhipuModelName);
             case "openai":
                 return createOpenAiStreamingModel();
             default:
-                return createZhipuStreamingModel();
+                return createZhipuStreamingModel(zhipuModelName);
         }
+    }
+
+    /**
+     * 创建用于视觉任务的 StreamingChatLanguageModel Bean
+     */
+    @Bean
+    public StreamingChatLanguageModel visionStreamingChatLanguageModel() {
+        logger.info("初始化视觉流式 AI 模型，提供商: {}", provider);
+        // 目前主要支持智谱的视觉模型
+        return createZhipuStreamingModel(zhipuVisionModelName);
     }
 
     /**
      * 创建智谱 AI 流式模型
      */
-    private StreamingChatLanguageModel createZhipuStreamingModel() {
+    private StreamingChatLanguageModel createZhipuStreamingModel(String modelName) {
         String apiKey = zhipuApiKey;
         if (apiKey == null || apiKey.isEmpty()) {
             apiKey = System.getenv("ZHIPU_API_KEY");
@@ -113,7 +126,7 @@ public class LangChain4jConfig {
 
         return ZhipuAiStreamingChatModel.builder()
                 .apiKey(apiKey)
-                .model(zhipuModelName)
+                .model(modelName)
                 .temperature(zhipuTemperature)
                 .build();
     }

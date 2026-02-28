@@ -2,6 +2,7 @@ package com.example.demo_ai.controller;
 
 import com.example.demo_ai.model.ChatRequest;
 import com.example.demo_ai.model.ChatResponse;
+import com.example.demo_ai.model.StreamChatRequest;
 import com.example.demo_ai.service.AuthService;
 import com.example.demo_ai.service.ConversationService;
 import dev.langchain4j.service.TokenStream;
@@ -49,17 +50,16 @@ public class ConversationController {
     /**
      * 流式对话接口 (SSE)
      */
-    @GetMapping(value = "/stream", produces = "text/event-stream;charset=UTF-8")
+    @PostMapping(value = "/stream", produces = "text/event-stream;charset=UTF-8")
     public SseEmitter streamChat(
-            @RequestParam String message,
-            @RequestParam(required = false) String sessionId,
+            @RequestBody StreamChatRequest request,
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
 
         // 获取当前用户
         String userId = getCurrentUserId(authHeader);
 
         // 如果没有提供 sessionId，生成一个新的
-        final String finalSessionId = (sessionId != null && !sessionId.isEmpty()) ? sessionId : UUID.randomUUID().toString();
+        final String finalSessionId = (request.getSessionId() != null && !request.getSessionId().isEmpty()) ? request.getSessionId() : UUID.randomUUID().toString();
 
         // 创建 SseEmitter，设置超时时间为 5 分钟
         SseEmitter emitter = new SseEmitter(5 * 60 * 1000L);
@@ -68,12 +68,31 @@ public class ConversationController {
             // 发送初始事件，告诉前端 sessionId
             emitter.send(SseEmitter.event().name("session").data(finalSessionId));
 
+            // 检查是否是图片生成任务
+            String message = request.getMessage() != null ? request.getMessage() : "";
+            boolean isImageTask = message.contains("生成") || message.contains("画") ||
+                                 message.contains("图片") || message.contains("绘制");
+
+            if (isImageTask) {
+                // 为图片生成任务发送初始状态
+                Map<String, String> statusData = new HashMap<>();
+                statusData.put("status", "🎨 正在生成图片中，这可能需要 15-30 秒，请稍候...");
+                try {
+                    emitter.send(SseEmitter.event().name("status").data(statusData));
+                } catch (IOException e) {
+                    logger.debug("发送初始状态失败", e);
+                }
+            }
+
             // 调用服务获取 TokenStream
-            TokenStream tokenStream = conversationService.streamChat(message, finalSessionId, userId);
+            TokenStream tokenStream = conversationService.streamChat(request.getMessage(), finalSessionId, userId, request.getImageBase64());
 
             // 处理流式输出
             tokenStream
                 .onNext(token -> {
+                    if (token == null || token.isEmpty()) {
+                        return;
+                    }
                     try {
                         // 将每个 token 包装成 JSON 对象发送，避免换行符被 SSE 格式化吞掉
                         Map<String, String> data = new HashMap<>();
