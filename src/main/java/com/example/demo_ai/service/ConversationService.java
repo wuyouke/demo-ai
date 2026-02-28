@@ -55,6 +55,9 @@ public class ConversationService {
     @Autowired
     private ImageToolManager imageToolManager;
 
+    @Autowired
+    private PersonaManager personaManager;
+
     /**
      * 记忆助手接口（带记忆ID）
      */
@@ -63,8 +66,9 @@ public class ConversationService {
     }
 
     /**
-     * 流式记忆助手接口
+     * 流式记忆助手接口（支持动态系统提示）
      */
+    @dev.langchain4j.service.SystemMessage("你是一个友好、专业的AI助手。你的职责是帮助用户查询天气、推荐旅游景点。")
     public interface StreamingMemoryAssistant {
         TokenStream chat(@MemoryId String memoryId, @dev.langchain4j.service.UserMessage String userMessage);
     }
@@ -113,6 +117,11 @@ public class ConversationService {
      * 最大历史消息数量
      */
     private static final int MAX_MESSAGES = 20;
+
+    /**
+     * 存储每个会话当前的角色ID（sessionId -> personaId）
+     */
+    private final Map<String, String> sessionPersonaMap = new HashMap<>();
 
     /**
      * 默认系统提示
@@ -211,7 +220,34 @@ public class ConversationService {
             }
         }
 
-        logger.info("流式会话 [{}]: {}", sessionId, message);
+        // 获取当前角色并注入其系统提示
+        String currentPersonaId = personaManager.getCurrentPersonaId();
+        com.example.demo_ai.model.PromptTemplate currentPersona = personaManager.getCurrentPersona();
+        String systemPrompt = currentPersona != null ? currentPersona.getSystemPrompt() : DEFAULT_SYSTEM_PROMPT;
+
+        // 确保会话的记忆已初始化
+        ChatMemory memory = memoryMap.computeIfAbsent(sessionId, k ->
+            MessageWindowChatMemory.builder().maxMessages(MAX_MESSAGES).build()
+        );
+
+        // 检查会话的角色是否改变（用户在同一会话中切换了角色）
+        String previousPersonaId = sessionPersonaMap.getOrDefault(sessionId, currentPersonaId);
+        if (!previousPersonaId.equals(currentPersonaId)) {
+            logger.info("会话 [{}] 角色已从 [{}] 切换到 [{}]", sessionId, previousPersonaId, currentPersonaId);
+            // 清空记忆并重新添加新的系统提示
+            memoryMap.put(sessionId, MessageWindowChatMemory.builder().maxMessages(MAX_MESSAGES).build());
+            memory = memoryMap.get(sessionId);
+            memory.add(dev.langchain4j.data.message.SystemMessage.from(systemPrompt));
+        } else if (memory.messages().isEmpty()) {
+            // 新会话：将系统提示作为系统消息添加到记忆中
+            logger.info("为会话 [{}] 注入角色 [{}] 的系统提示", sessionId, currentPersonaId);
+            memory.add(dev.langchain4j.data.message.SystemMessage.from(systemPrompt));
+        }
+
+        // 记录当前会话的角色ID
+        sessionPersonaMap.put(sessionId, currentPersonaId);
+
+        logger.info("流式会话 [{}] (角色: {}): {}", sessionId, currentPersonaId, message);
 
         // 检查是否包含图片，或者是否在询问关于图片的问题
         boolean hasImage = imageBase64 != null && !imageBase64.isEmpty();
@@ -227,10 +263,6 @@ public class ConversationService {
 
             if (hasImage) {
                 // 如果有图片，先将多模态消息添加到记忆中
-                ChatMemory memory = memoryMap.computeIfAbsent(sessionId, k ->
-                    MessageWindowChatMemory.builder().maxMessages(MAX_MESSAGES).build()
-                );
-
                 // 构建多模态消息并添加到记忆
                 dev.langchain4j.data.message.UserMessage userMessage;
                 if (imageBase64.startsWith("data:image")) {
@@ -343,6 +375,7 @@ public class ConversationService {
     public void clearHistory(String sessionId) {
         if (sessionId != null && !sessionId.isEmpty()) {
             memoryMap.remove(sessionId);
+            sessionPersonaMap.remove(sessionId);
 
             // 移除会话到用户的映射
             String userId = sessionToUserMap.remove(sessionId);
@@ -427,6 +460,7 @@ public class ConversationService {
         if (sessions != null) {
             for (String sessionId : sessions) {
                 memoryMap.remove(sessionId);
+                sessionPersonaMap.remove(sessionId);
                 sessionToUserMap.remove(sessionId);
             }
             logger.info("已删除用户 [{}] 的所有 {} 个会话", userId, sessions.size());

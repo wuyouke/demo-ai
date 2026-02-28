@@ -2,9 +2,11 @@ package com.example.demo_ai.controller;
 
 import com.example.demo_ai.model.ChatRequest;
 import com.example.demo_ai.model.ChatResponse;
+import com.example.demo_ai.model.PromptTemplate;
 import com.example.demo_ai.model.StreamChatRequest;
 import com.example.demo_ai.service.AuthService;
 import com.example.demo_ai.service.ConversationService;
+import com.example.demo_ai.service.PersonaManager;
 import dev.langchain4j.service.TokenStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,6 +49,9 @@ public class ConversationController {
     @Autowired
     private AuthService authService;
 
+    @Autowired
+    private PersonaManager personaManager;
+
     /**
      * 流式对话接口 (SSE)
      */
@@ -83,6 +88,13 @@ public class ConversationController {
                     logger.debug("发送初始状态失败", e);
                 }
             }
+
+            // 设置选中的角色
+            String personaId = request.getPersonaId() != null ? request.getPersonaId() : "assistant";
+            if (!personaManager.hasPersona(personaId)) {
+                personaId = "assistant";
+            }
+            personaManager.setCurrentPersona(personaId);
 
             // 调用服务获取 TokenStream
             TokenStream tokenStream = conversationService.streamChat(request.getMessage(), finalSessionId, userId, request.getImageBase64());
@@ -319,6 +331,84 @@ public class ConversationController {
     }
 
     /**
+     * 获取所有可用的 AI 角色列表
+     */
+    @GetMapping("/personas")
+    public ResponseEntity<Map<String, Object>> getPersonas() {
+        try {
+            List<PromptTemplate> personas = personaManager.getAllPersonas();
+            Map<String, Object> result = new HashMap<>();
+            result.put("success", true);
+            result.put("personaCount", personas.size());
+            result.put("personas", personas);
+            result.put("currentPersona", personaManager.getCurrentPersonaId());
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            logger.error("获取角色列表失败", e);
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("error", "获取失败: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
+    /**
+     * 获取指定角色的详细信息
+     */
+    @GetMapping("/personas/{personaId}")
+    public ResponseEntity<Map<String, Object>> getPersona(@PathVariable String personaId) {
+        try {
+            if (!personaManager.hasPersona(personaId)) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("success", false);
+                error.put("error", "角色不存在");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+            }
+
+            PromptTemplate persona = personaManager.getPersona(personaId);
+            Map<String, Object> result = new HashMap<>();
+            result.put("success", true);
+            result.put("persona", persona);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            logger.error("获取角色信息失败", e);
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("error", "获取失败: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
+    /**
+     * 设置当前角色
+     */
+    @PostMapping("/personas/{personaId}/select")
+    public ResponseEntity<Map<String, Object>> selectPersona(@PathVariable String personaId) {
+        try {
+            if (!personaManager.hasPersona(personaId)) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("success", false);
+                error.put("error", "角色不存在");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+            }
+
+            personaManager.setCurrentPersona(personaId);
+            PromptTemplate currentPersona = personaManager.getCurrentPersona();
+            Map<String, Object> result = new HashMap<>();
+            result.put("success", true);
+            result.put("message", "角色已切换");
+            result.put("currentPersona", currentPersona);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            logger.error("切换角色失败", e);
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("error", "切换失败: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
+    /**
      * 健康检查
      */
     @GetMapping("/health")
@@ -336,6 +426,7 @@ public class ConversationController {
         features.add("历史记录查询");
         features.add("天气查询工具");
         features.add("旅游景点工具");
+        features.add("角色扮演与提示词工程");
         health.put("features", features);
 
         return ResponseEntity.ok(health);

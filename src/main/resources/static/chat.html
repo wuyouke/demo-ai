@@ -260,6 +260,42 @@
             background: #45a049;
             transform: scale(1.1);
         }
+        .persona-selector {
+            padding: 12px 20px;
+            border-bottom: 1px solid #eee;
+            background: white;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .persona-selector label {
+            font-weight: 500;
+            color: #333;
+            white-space: nowrap;
+        }
+        .persona-selector select {
+            flex: 1;
+            padding: 10px 12px;
+            border: 2px solid #eee;
+            border-radius: 18px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s;
+            background: white;
+            cursor: pointer;
+        }
+        .persona-selector select:hover {
+            border-color: #667eea;
+        }
+        .persona-selector select:focus {
+            border-color: #667eea;
+        }
+        .persona-info {
+            font-size: 12px;
+            color: #999;
+            margin-top: 4px;
+            padding: 0 20px;
+        }
     </style>
 </head>
 <body>
@@ -276,6 +312,13 @@
                 </div>
             </div>
         </div>
+        <div class="persona-selector">
+            <label for="personaSelect">🎭 角色:</label>
+            <select id="personaSelect" onchange="switchPersona()">
+                <option value="">加载中...</option>
+            </select>
+        </div>
+        <div class="persona-info" id="personaInfo"></div>
         <div class="chat-area" id="chatArea"></div>
         <div class="input-area">
             <div class="image-preview-container" id="imagePreviewContainer">
@@ -302,11 +345,13 @@
         let sessionId = null;
         let userId = null;
         let token = null;
+        let currentPersonaId = 'assistant'; // 当前选中的角色
+        let personas = []; // 所有可用的角色列表
         const chatArea = document.getElementById('chatArea');
         const messageInput = document.getElementById('messageInput');
         const info = document.getElementById('info');
 
-        // 检查认证状态
+        // 检查认证状态并加载角色列表
         window.addEventListener('load', function() {
             token = localStorage.getItem('token');
             userId = localStorage.getItem('userId');
@@ -318,6 +363,8 @@
             } else {
                 // 显示用户信息
                 document.getElementById('username').textContent = username || '用户';
+                // 加载角色列表
+                loadPersonas();
             }
         });
 
@@ -327,6 +374,98 @@
                 localStorage.removeItem('userId');
                 localStorage.removeItem('username');
                 window.location.href = '/index.html';
+            }
+        }
+
+        // ============== 角色管理函数 ==============
+
+        /**
+         * 加载所有可用的角色列表
+         */
+        function loadPersonas() {
+            fetch('/api/conversation/personas', {
+                method: 'GET',
+                headers: {
+                    'Authorization': 'Bearer ' + token
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.personas) {
+                    personas = data.personas;
+                    const personaSelect = document.getElementById('personaSelect');
+                    personaSelect.innerHTML = '';
+
+                    // 添加所有角色到下拉菜单
+                    personas.forEach(persona => {
+                        const option = document.createElement('option');
+                        option.value = persona.id;
+                        option.textContent = persona.emoji + ' ' + persona.name;
+                        personaSelect.appendChild(option);
+                    });
+
+                    // 设置默认选中
+                    personaSelect.value = data.currentPersona || 'assistant';
+                    currentPersonaId = personaSelect.value;
+                    updatePersonaInfo();
+                }
+            })
+            .catch(error => {
+                console.error('加载角色列表失败:', error);
+            });
+        }
+
+        /**
+         * 切换角色
+         */
+        function switchPersona() {
+            const personaSelect = document.getElementById('personaSelect');
+            const newPersonaId = personaSelect.value;
+
+            if (newPersonaId === currentPersonaId) {
+                return;
+            }
+
+            // 向服务器发送角色切换请求
+            fetch('/api/conversation/personas/' + newPersonaId + '/select', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    currentPersonaId = newPersonaId;
+                    updatePersonaInfo();
+                    console.log('角色已切换至:', newPersonaId);
+
+                    // 添加系统消息提示
+                    const persona = personas.find(p => p.id === newPersonaId);
+                    if (persona) {
+                        addMessage('🎭 **角色已切换**\n\n当前角色: ' + persona.emoji + ' ' + persona.name + '\n\n' + persona.description, false);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('切换角色失败:', error);
+                // 恢复到前一个选择
+                personaSelect.value = currentPersonaId;
+            });
+        }
+
+        /**
+         * 更新角色信息显示
+         */
+        function updatePersonaInfo() {
+            const persona = personas.find(p => p.id === currentPersonaId);
+            const personaInfo = document.getElementById('personaInfo');
+
+            if (persona) {
+                personaInfo.textContent = persona.emoji + ' ' + persona.description;
+            } else {
+                personaInfo.textContent = '';
             }
         }
 
@@ -476,7 +615,8 @@
                     body: JSON.stringify({
                         message: message || "请描述这张图片",
                         sessionId: sessionId,
-                        imageBase64: imageToSend
+                        imageBase64: imageToSend,
+                        personaId: currentPersonaId  // 添加角色 ID
                     })
                 });
 
@@ -753,7 +893,7 @@
         }, false);
 
         // 欢迎消息
-        addMessage('👋 你好！我是 AI 助手，可以帮你查询天气、推荐旅游景点。\n\n💡 **新功能**：\n- 🎤 点击话筒按钮进行语音输入\n- 🔊 点击绿色按钮播放 AI 回复的语音', false);
+        addMessage('👋 你好！我是 AI 助手，可以帮你查询天气、推荐旅游景点。\n\n💡 **新功能**：\n- 🎭 选择不同角色体验不同的对话风格（资深程序员、心理咨询师、英语翻译官等）\n- 🎤 点击话筒按钮进行语音输入\n- 🔊 点击绿色按钮播放 AI 回复的语音', false);
     </script>
 </body>
 </html>

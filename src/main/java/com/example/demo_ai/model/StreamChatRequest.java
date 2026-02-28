@@ -4,6 +4,7 @@ public class StreamChatRequest {
     private String message;
     private String sessionId;
     private String imageBase64;
+    private String personaId;
 
     public String getMessage() {
         return message;
@@ -27,6 +28,14 @@ public class StreamChatRequest {
 
     public void setImageBase64(String imageBase64) {
         this.imageBase64 = imageBase64;
+    }
+
+    public String getPersonaId() {
+        return personaId;
+    }
+
+    public void setPersonaId(String personaId) {
+        this.personaId = personaId;
     }
 }
 
