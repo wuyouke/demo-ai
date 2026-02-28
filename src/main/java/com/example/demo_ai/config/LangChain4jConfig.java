@@ -1,8 +1,11 @@
 package com.example.demo_ai.config;
 
 import dev.langchain4j.model.chat.ChatLanguageModel;
+import dev.langchain4j.model.chat.StreamingChatLanguageModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
+import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import dev.langchain4j.model.zhipu.ZhipuAiChatModel;
+import dev.langchain4j.model.zhipu.ZhipuAiStreamingChatModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -76,6 +79,64 @@ public class LangChain4jConfig {
                 logger.warn("未知的提供商: {}，默认使用智谱 AI", provider);
                 return createZhipuModel();
         }
+    }
+
+    /**
+     * 创建 StreamingChatLanguageModel Bean (用于流式输出)
+     */
+    @Bean
+    public StreamingChatLanguageModel streamingChatLanguageModel() {
+        logger.info("初始化流式 AI 模型，提供商: {}", provider);
+
+        switch (provider.toLowerCase()) {
+            case "zhipu":
+                return createZhipuStreamingModel();
+            case "openai":
+                return createOpenAiStreamingModel();
+            default:
+                return createZhipuStreamingModel();
+        }
+    }
+
+    /**
+     * 创建智谱 AI 流式模型
+     */
+    private StreamingChatLanguageModel createZhipuStreamingModel() {
+        String apiKey = zhipuApiKey;
+        if (apiKey == null || apiKey.isEmpty()) {
+            apiKey = System.getenv("ZHIPU_API_KEY");
+        }
+
+        if (apiKey == null || apiKey.isEmpty()) {
+            throw new IllegalStateException("智谱 AI API Key 未配置！");
+        }
+
+        return ZhipuAiStreamingChatModel.builder()
+                .apiKey(apiKey)
+                .model(zhipuModelName)
+                .temperature(zhipuTemperature)
+                .build();
+    }
+
+    /**
+     * 创建 OpenAI 流式模型
+     */
+    private StreamingChatLanguageModel createOpenAiStreamingModel() {
+        String apiKey = openaiApiKey;
+        if (apiKey == null || apiKey.isEmpty()) {
+            apiKey = System.getenv("OPENAI_API_KEY");
+        }
+
+        if (apiKey == null || apiKey.isEmpty()) {
+            throw new IllegalStateException("OpenAI API Key 未配置！");
+        }
+
+        return OpenAiStreamingChatModel.builder()
+                .apiKey(apiKey)
+                .modelName(openaiModelName)
+                .temperature(openaiTemperature)
+                .timeout(Duration.ofSeconds(openaiTimeout))
+                .build();
     }
 
     /**

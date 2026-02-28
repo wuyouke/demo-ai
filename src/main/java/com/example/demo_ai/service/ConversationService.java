@@ -7,8 +7,10 @@ import com.example.demo_ai.tools.WeatherToolManager;
 import dev.langchain4j.memory.ChatMemory;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatLanguageModel;
+import dev.langchain4j.model.chat.StreamingChatLanguageModel;
 import dev.langchain4j.service.AiServices;
 import dev.langchain4j.service.MemoryId;
+import dev.langchain4j.service.TokenStream;
 import dev.langchain4j.service.UserMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +36,9 @@ public class ConversationService {
     private ChatLanguageModel chatLanguageModel;
 
     @Autowired
+    private StreamingChatLanguageModel streamingChatLanguageModel;
+
+    @Autowired
     private WeatherToolManager weatherToolManager;
 
     @Autowired
@@ -46,7 +51,15 @@ public class ConversationService {
         String chat(@MemoryId String memoryId, @UserMessage String userMessage);
     }
 
+    /**
+     * 流式记忆助手接口
+     */
+    public interface StreamingMemoryAssistant {
+        TokenStream chat(@MemoryId String memoryId, @UserMessage String userMessage);
+    }
+
     private MemoryAssistant assistant;
+    private StreamingMemoryAssistant streamingAssistant;
 
     /**
      * 聊天记忆存储（按 memoryId 组织）
@@ -83,7 +96,7 @@ public class ConversationService {
 
     @PostConstruct
     public void init() {
-        // 创建带记忆 Provider 的 Assistant
+        // 创建带记忆 Provider 的 Assistant (阻塞式)
         this.assistant = AiServices.builder(MemoryAssistant.class)
                 .chatLanguageModel(chatLanguageModel)
                 .chatMemoryProvider(memoryId -> {
@@ -98,7 +111,45 @@ public class ConversationService {
                 .tools(weatherToolManager, touristAttractionToolManager)
                 .build();
 
-        logger.info("ConversationService 初始化完成，支持多轮对话和上下文保持");
+        // 创建带记忆 Provider 的 Streaming Assistant (流式)
+        this.streamingAssistant = AiServices.builder(StreamingMemoryAssistant.class)
+                .streamingChatLanguageModel(streamingChatLanguageModel)
+                .chatMemoryProvider(memoryId -> {
+                    if (!memoryMap.containsKey(memoryId)) {
+                        memoryMap.put(memoryId, MessageWindowChatMemory.builder()
+                                .maxMessages(MAX_MESSAGES)
+                                .build());
+                    }
+                    return memoryMap.get(memoryId);
+                })
+                .tools(weatherToolManager, touristAttractionToolManager)
+                .build();
+
+        logger.info("ConversationService 初始化完成，支持多轮对话和上下文保持 (包含流式输出)");
+    }
+
+    /**
+     * 流式发送消息
+     */
+    public TokenStream streamChat(String message, String sessionId, String userId) {
+        // 如果会话 ID 为空，生成新的
+        if (sessionId == null || sessionId.isEmpty()) {
+            sessionId = UUID.randomUUID().toString();
+            logger.info("创建新流式会话: {}", sessionId);
+        }
+
+        // 如果提供了 userId，关联会话到用户
+        if (userId != null && !userId.isEmpty()) {
+            if (!sessionToUserMap.containsKey(sessionId)) {
+                sessionToUserMap.put(sessionId, userId);
+                userToSessionsMap.computeIfAbsent(userId, k -> new ArrayList<>()).add(sessionId);
+                logger.info("流式会话 [{}] 已绑定到用户 [{}]", sessionId, userId);
+            }
+        }
+
+        logger.info("流式会话 [{}]: {}", sessionId, message);
+
+        return streamingAssistant.chat(sessionId, message);
     }
 
     /**

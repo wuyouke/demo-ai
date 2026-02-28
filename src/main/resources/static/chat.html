@@ -59,6 +59,7 @@
             padding: 12px 16px;
             border-radius: 18px;
             line-height: 1.5;
+            white-space: pre-wrap;
         }
         .message.user .message-content {
             background: #667eea;
@@ -233,41 +234,97 @@
             addMessage(message, true);
             messageInput.value = '';
 
-            // 显示加载状态
-            addLoadingMessage();
+            // 创建一个空的 AI 消息框，用于流式追加内容
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message ai';
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.innerHTML = '<span class="loading"></span>思考中...';
+            messageDiv.appendChild(contentDiv);
+            chatArea.appendChild(messageDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
 
             try {
-                const response = await fetch('/api/conversation/chat/full', {
-                    method: 'POST',
+                // 构建 URL，包含 message 和 sessionId
+                let url = '/api/conversation/stream?message=' + encodeURIComponent(message);
+                if (sessionId) {
+                    url += '&sessionId=' + encodeURIComponent(sessionId);
+                }
+
+                const response = await fetch(url, {
+                    method: 'GET',
                     headers: {
-                        'Content-Type': 'application/json',
                         'Authorization': 'Bearer ' + token
-                    },
-                    body: JSON.stringify({
-                        message: message,
-                        sessionId: sessionId
-                    })
+                    }
                 });
 
-                const data = await response.json();
-
-                removeLoadingMessage();
-
                 if (response.status === 401) {
-                    addMessage('❌ 认证失败，请重新登陆', false);
+                    contentDiv.innerHTML = '❌ 认证失败，请重新登陆';
                     setTimeout(() => {
                         window.location.href = '/index.html';
                     }, 2000);
-                } else if (data.success) {
-                    addMessage(data.response, false);
-                    sessionId = data.sessionId;
-                    info.textContent = '会话 ID: ' + sessionId.substring(0, 8) + '...';
-                } else {
-                    addMessage('❌ ' + data.errorMessage, false);
+                    return;
+                }
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                // 移除 loading 状态，准备接收文本
+                contentDiv.innerHTML = '';
+
+                // 读取流式数据
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                let done = false;
+                let buffer = '';
+
+                while (!done) {
+                    const { value, done: readerDone } = await reader.read();
+                    done = readerDone;
+                    if (value) {
+                        buffer += decoder.decode(value, { stream: true });
+
+                        // SSE 事件以 \n\n 分隔
+                        let eventEndIndex;
+                        while ((eventEndIndex = buffer.indexOf('\n\n')) >= 0) {
+                            const eventString = buffer.substring(0, eventEndIndex);
+                            buffer = buffer.substring(eventEndIndex + 2);
+
+                            const lines = eventString.split('\n');
+                            let currentEvent = 'message'; // 默认事件类型
+                            let data = '';
+
+                            for (const line of lines) {
+                                if (line.startsWith('event:')) {
+                                    currentEvent = line.substring(6).trim();
+                                } else if (line.startsWith('data:')) {
+                                    data = line.substring(5).trim();
+                                }
+                            }
+
+                            if (data) {
+                                if (currentEvent === 'session') {
+                                    sessionId = data;
+                                    info.textContent = '会话 ID: ' + sessionId.substring(0, 8) + '...';
+                                } else if (currentEvent === 'message') {
+                                    if (data === 'done') continue;
+                                    try {
+                                        const parsed = JSON.parse(data);
+                                        contentDiv.textContent += parsed.text;
+                                        chatArea.scrollTop = chatArea.scrollHeight;
+                                    } catch (e) {
+                                        console.error('解析消息失败:', data, e);
+                                    }
+                                } else if (currentEvent === 'error') {
+                                    contentDiv.innerHTML += '<br><span style="color:red">❌ ' + data + '</span>';
+                                }
+                            }
+                        }
+                    }
                 }
             } catch (error) {
-                removeLoadingMessage();
-                addMessage('❌ 请求失败: ' + error.message, false);
+                contentDiv.innerHTML = '❌ 请求失败: ' + error.message;
             }
         }
 

@@ -4,6 +4,7 @@ import com.example.demo_ai.model.ChatRequest;
 import com.example.demo_ai.model.ChatResponse;
 import com.example.demo_ai.service.AuthService;
 import com.example.demo_ai.service.ConversationService;
+import dev.langchain4j.service.TokenStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,11 +20,14 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * 多轮对话控制器
@@ -41,6 +45,73 @@ public class ConversationController {
 
     @Autowired
     private AuthService authService;
+
+    /**
+     * 流式对话接口 (SSE)
+     */
+    @GetMapping(value = "/stream", produces = "text/event-stream;charset=UTF-8")
+    public SseEmitter streamChat(
+            @RequestParam String message,
+            @RequestParam(required = false) String sessionId,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+
+        // 获取当前用户
+        String userId = getCurrentUserId(authHeader);
+
+        // 如果没有提供 sessionId，生成一个新的
+        final String finalSessionId = (sessionId != null && !sessionId.isEmpty()) ? sessionId : UUID.randomUUID().toString();
+
+        // 创建 SseEmitter，设置超时时间为 5 分钟
+        SseEmitter emitter = new SseEmitter(5 * 60 * 1000L);
+
+        try {
+            // 发送初始事件，告诉前端 sessionId
+            emitter.send(SseEmitter.event().name("session").data(finalSessionId));
+
+            // 调用服务获取 TokenStream
+            TokenStream tokenStream = conversationService.streamChat(message, finalSessionId, userId);
+
+            // 处理流式输出
+            tokenStream
+                .onNext(token -> {
+                    try {
+                        // 将每个 token 包装成 JSON 对象发送，避免换行符被 SSE 格式化吞掉
+                        Map<String, String> data = new HashMap<>();
+                        data.put("text", token);
+                        emitter.send(SseEmitter.event().name("message").data(data));
+                    } catch (IOException e) {
+                        logger.error("发送 SSE 数据失败", e);
+                        emitter.completeWithError(e);
+                    }
+                })
+                .onComplete(response -> {
+                    try {
+                        // 发送完成事件
+                        emitter.send(SseEmitter.event().name("message").data("done"));
+                        emitter.complete();
+                    } catch (IOException e) {
+                        logger.error("发送 SSE 完成事件失败", e);
+                        emitter.completeWithError(e);
+                    }
+                })
+                .onError(error -> {
+                    logger.error("流式对话发生错误", error);
+                    try {
+                        emitter.send(SseEmitter.event().name("error").data(error.getMessage()));
+                    } catch (IOException e) {
+                        // ignore
+                    }
+                    emitter.completeWithError(error);
+                })
+                .start();
+
+        } catch (Exception e) {
+            logger.error("初始化流式对话失败", e);
+            emitter.completeWithError(e);
+        }
+
+        return emitter;
+    }
 
     /**
      * 提取 Authorization header 中的 Token
