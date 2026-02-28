@@ -207,6 +207,59 @@
         .clear-btn:hover {
             background: #ee5a5a;
         }
+        .voice-btn {
+            background: #ff8c42;
+            padding: 12px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s;
+        }
+        .voice-btn:hover {
+            background: #ff7a2f;
+        }
+        .voice-btn.recording {
+            background: #ff4444;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .voice-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            0%, 50%, 100% { opacity: 1; }
+            25%, 75% { opacity: 0.5; }
+        }
+        .tts-btn {
+            background: #4CAF50;
+            padding: 8px 12px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 14px;
+            border: none;
+            color: white;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+        .tts-btn:hover {
+            background: #45a049;
+            transform: scale(1.1);
+        }
     </style>
 </head>
 <body>
@@ -234,7 +287,10 @@
                     📎
                     <input type="file" id="imageInput" accept="image/*" onchange="handleImageUpload(event)">
                 </label>
-                <input type="text" id="messageInput" placeholder="输入消息..." onkeypress="handleKeyPress(event)">
+                <button class="voice-btn" id="voiceBtn" title="点击说话" onclick="toggleVoiceInput()">
+                    🎤 <span id="voiceStatus">说话</span>
+                </button>
+                <input type="text" id="messageInput" placeholder="输入消息或点击🎤说话..." onkeypress="handleKeyPress(event)">
                 <button onclick="sendMessage()">发送</button>
                 <button class="clear-btn" onclick="clearChat()">清空</button>
             </div>
@@ -278,6 +334,11 @@
             const messageDiv = document.createElement('div');
             messageDiv.className = 'message ' + (isUser ? 'user' : 'ai');
 
+            const wrapperDiv = document.createElement('div');
+            wrapperDiv.style.display = 'flex';
+            wrapperDiv.style.gap = '8px';
+            wrapperDiv.style.alignItems = 'flex-start';
+
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
 
@@ -287,7 +348,21 @@
                 contentDiv.innerHTML = marked.parse(content);
             }
 
-            messageDiv.appendChild(contentDiv);
+            wrapperDiv.appendChild(contentDiv);
+
+            // 为 AI 消息添加语音播放按钮
+            if (!isUser) {
+                const ttsBtn = document.createElement('button');
+                ttsBtn.className = 'tts-btn';
+                ttsBtn.innerHTML = '🔊';
+                ttsBtn.title = '播放语音';
+                ttsBtn.onclick = function() {
+                    playAIResponse(contentDiv);
+                };
+                wrapperDiv.appendChild(ttsBtn);
+            }
+
+            messageDiv.appendChild(wrapperDiv);
             chatArea.appendChild(messageDiv);
             chatArea.scrollTop = chatArea.scrollHeight;
         }
@@ -355,6 +430,13 @@
             // 创建一个空的 AI 消息框，用于流式追加内容
             const messageDiv = document.createElement('div');
             messageDiv.className = 'message ai';
+
+            // 创建 wrapper 用于容纳内容和 TTS 按钮
+            const wrapperDiv = document.createElement('div');
+            wrapperDiv.style.display = 'flex';
+            wrapperDiv.style.gap = '8px';
+            wrapperDiv.style.alignItems = 'flex-start';
+
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
 
@@ -365,7 +447,19 @@
                 contentDiv.innerHTML = '<span class="loading"></span>思考中...';
             }
 
-            messageDiv.appendChild(contentDiv);
+            wrapperDiv.appendChild(contentDiv);
+
+            // 添加 TTS 按钮
+            const ttsBtn = document.createElement('button');
+            ttsBtn.className = 'tts-btn';
+            ttsBtn.innerHTML = '🔊';
+            ttsBtn.title = '播放语音';
+            ttsBtn.onclick = function() {
+                playAIResponse(contentDiv);
+            };
+            wrapperDiv.appendChild(ttsBtn);
+
+            messageDiv.appendChild(wrapperDiv);
             chatArea.appendChild(messageDiv);
             chatArea.scrollTop = chatArea.scrollHeight;
 
@@ -525,8 +619,141 @@
             }
         }
 
+        // ============== 语音识别 (ASR) 逻辑 ==============
+        let recognition = null;
+        let isRecording = false;
+
+        // 初始化语音识别
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert('您的浏览器不支持语音识别功能。请使用 Chrome、Edge 等现代浏览器。');
+                return false;
+            }
+
+            recognition = new SpeechRecognition();
+            recognition.lang = 'zh-CN'; // 设置为中文
+            recognition.continuous = true;
+            recognition.interimResults = true;
+
+            recognition.onstart = function() {
+                isRecording = true;
+                const voiceBtn = document.getElementById('voiceBtn');
+                voiceBtn.classList.add('recording');
+                document.getElementById('voiceStatus').innerHTML = '<span class="voice-indicator"></span>正在听...';
+            };
+
+            recognition.onresult = function(event) {
+                let interimTranscript = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        messageInput.value += transcript;
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+                if (interimTranscript) {
+                    messageInput.value = messageInput.value + interimTranscript;
+                    messageInput.placeholder = '识别中...';
+                }
+            };
+
+            recognition.onerror = function(event) {
+                console.error('语音识别错误:', event.error);
+                alert('语音识别错误: ' + event.error);
+            };
+
+            recognition.onend = function() {
+                isRecording = false;
+                const voiceBtn = document.getElementById('voiceBtn');
+                voiceBtn.classList.remove('recording');
+                document.getElementById('voiceStatus').textContent = '说话';
+                messageInput.placeholder = '输入消息或点击🎤说话...';
+            };
+
+            return true;
+        }
+
+        // 切换语音输入
+        function toggleVoiceInput() {
+            if (!recognition && !initSpeechRecognition()) {
+                return;
+            }
+
+            if (isRecording) {
+                recognition.stop();
+            } else {
+                messageInput.value = '';
+                recognition.start();
+            }
+        }
+
+        // ============== 文字转语音 (TTS) 逻辑 ==============
+        let currentAudio = null;
+
+        function playAIResponse(contentDiv) {
+            // 获取内容，可能是 contentDiv 或直接是文本字符串
+            let text;
+            if (typeof contentDiv === 'string') {
+                text = contentDiv;
+            } else if (contentDiv && contentDiv.nodeType === 1) {
+                // 获取元素的纯文本，排除 HTML 标签
+                text = contentDiv.innerText || contentDiv.textContent || '';
+            } else {
+                text = String(contentDiv || '');
+            }
+
+            // 移除空白字符并截取前 500 个字符
+            text = text.trim().substring(0, 500);
+
+            if (!text) {
+                alert('没有内容可播放');
+                return;
+            }
+
+            // 使用浏览器原生 TTS
+            if ('speechSynthesis' in window) {
+                // 停止当前播放
+                if (currentAudio) {
+                    speechSynthesis.cancel();
+                }
+
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'zh-CN';
+                utterance.rate = 1;
+                utterance.pitch = 1;
+                utterance.volume = 1;
+
+                utterance.onstart = function() {
+                    console.log('开始播放语音:', text.substring(0, 50));
+                };
+
+                utterance.onend = function() {
+                    console.log('语音播放完成');
+                    currentAudio = null;
+                };
+
+                utterance.onerror = function(event) {
+                    console.error('语音播放错误:', event.error);
+                    alert('语音播放失败: ' + event.error);
+                };
+
+                currentAudio = utterance;
+                speechSynthesis.speak(utterance);
+            } else {
+                alert('您的浏览器不支持文字转语音功能');
+            }
+        }
+
+        // 页面加载时初始化语音识别
+        window.addEventListener('load', function(e) {
+            // ... 现有代码 ...
+            initSpeechRecognition();
+        }, false);
+
         // 欢迎消息
-        addMessage('👋 你好！我是 AI 助手，可以帮你查询天气、推荐旅游景点。请问有什么可以帮助你的吗？', false);
+        addMessage('👋 你好！我是 AI 助手，可以帮你查询天气、推荐旅游景点。\n\n💡 **新功能**：\n- 🎤 点击话筒按钮进行语音输入\n- 🔊 点击绿色按钮播放 AI 回复的语音', false);
     </script>
 </body>
 </html>
