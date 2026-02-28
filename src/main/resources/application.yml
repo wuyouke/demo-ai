@@ -1,3 +1,12 @@
+# 应用配置
+app:
+  # JWT 配置
+  jwt:
+    # 密钥（用于签署 JWT Token，至少 512 位）
+    secret: ${JWT_SECRET:demo-ai-secret-key-for-jwt-token-generation-very-long-string-to-ensure-512-bits-for-hs512}
+    # 过期时间（毫秒，默认 24 小时）
+    expiration: ${JWT_EXPIRATION:86400000}
+
 # LangChain4j 配置
 langchain4j:
   # 使用的模型提供商：zhipu（智谱AI）或 openai

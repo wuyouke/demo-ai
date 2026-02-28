@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo AI - 登陆</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 400px;
+            padding: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            padding: 40px;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            color: #333;
+            font-weight: 500;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        input[type="email"] {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        input[type="text"]:focus,
+        input[type="password"]:focus,
+        input[type="email"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-login {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-register {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-register:hover {
+            background: #e0e0e0;
+        }
+
+        .toggle-form {
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .toggle-form a {
+            color: #667eea;
+            cursor: pointer;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .toggle-form a:hover {
+            text-decoration: underline;
+        }
+
+        .message {
+            padding: 12px 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        .message.success {
+            display: block;
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            display: block;
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>🤖 Demo AI</h1>
+            <p class="subtitle">智能对话助手</p>
+
+            <div id="message" class="message"></div>
+
+            <!-- 登陆表单 -->
+            <div id="loginForm">
+                <div class="form-group">
+                    <label for="loginUsername">用户名</label>
+                    <input type="text" id="loginUsername" placeholder="输入用户名">
+                </div>
+                <div class="form-group">
+                    <label for="loginPassword">密码</label>
+                    <input type="password" id="loginPassword" placeholder="输入密码">
+                </div>
+                <div class="button-group">
+                    <button class="btn-login" onclick="login()">登陆</button>
+                    <button class="btn-register" onclick="toggleForm()">注册</button>
+                </div>
+            </div>
+
+            <!-- 注册表单 -->
+            <div id="registerForm" class="hidden">
+                <div class="form-group">
+                    <label for="registerUsername">用户名</label>
+                    <input type="text" id="registerUsername" placeholder="输入用户名">
+                </div>
+                <div class="form-group">
+                    <label for="registerEmail">邮箱</label>
+                    <input type="email" id="registerEmail" placeholder="输入邮箱地址">
+                </div>
+                <div class="form-group">
+                    <label for="registerPassword">密码</label>
+                    <input type="password" id="registerPassword" placeholder="输入密码">
+                </div>
+                <div class="button-group">
+                    <button class="btn-login" onclick="register()">注册</button>
+                    <button class="btn-register" onclick="toggleForm()">返回登陆</button>
+                </div>
+            </div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+            </div>
+
+            <div class="toggle-form" id="toggleText">
+                还没有账号？<a onclick="toggleForm()">立即注册</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080/api';
+
+        function showMessage(text, type) {
+            const msgEl = document.getElementById('message');
+            msgEl.textContent = text;
+            msgEl.className = 'message ' + type;
+            setTimeout(() => {
+                msgEl.className = 'message';
+            }, 5000);
+        }
+
+        function setLoading(loading) {
+            document.getElementById('loading').style.display = loading ? 'block' : 'none';
+        }
+
+        function toggleForm() {
+            const loginForm = document.getElementById('loginForm');
+            const registerForm = document.getElementById('registerForm');
+            const toggleText = document.getElementById('toggleText');
+
+            loginForm.classList.toggle('hidden');
+            registerForm.classList.toggle('hidden');
+
+            if (registerForm.classList.contains('hidden')) {
+                toggleText.innerHTML = '还没有账号？<a onclick="toggleForm()">立即注册</a>';
+            } else {
+                toggleText.innerHTML = '已有账号？<a onclick="toggleForm()">立即登陆</a>';
+            }
+        }
+
+        async function login() {
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+
+            if (!username || !password) {
+                showMessage('请输入用户名和密码', 'error');
+                return;
+            }
+
+            setLoading(true);
+
+            try {
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    showMessage('登陆成功！', 'success');
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('username', data.user.username);
+                    localStorage.setItem('userId', data.user.userId);
+                    setTimeout(() => {
+                        window.location.href = '/chat.html';
+                    }, 500);
+                } else {
+                    showMessage(data.message || '登陆失败', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showMessage('网络错误，请稍后重试', 'error');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        async function register() {
+            const username = document.getElementById('registerUsername').value;
+            const email = document.getElementById('registerEmail').value;
+            const password = document.getElementById('registerPassword').value;
+
+            if (!username || !email || !password) {
+                showMessage('请填写所有字段', 'error');
+                return;
+            }
+
+            if (password.length < 6) {
+                showMessage('密码至少需要 6 个字符', 'error');
+                return;
+            }
+
+            setLoading(true);
+
+            try {
+                const response = await fetch(`${API_BASE}/auth/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    showMessage('注册成功！将为您跳转到对话页面...', 'success');
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('username', data.user.username);
+                    localStorage.setItem('userId', data.user.userId);
+                    setTimeout(() => {
+                        window.location.href = '/chat.html';
+                    }, 500);
+                } else {
+                    showMessage(data.message || '注册失败', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showMessage('网络错误，请稍后重试', 'error');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // 回车键提交
+        document.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                const loginForm = document.getElementById('loginForm');
+                const registerForm = document.getElementById('registerForm');
+
+                if (!loginForm.classList.contains('hidden')) {
+                    login();
+                } else if (!registerForm.classList.contains('hidden')) {
+                    register();
+                }
+            }
+        });
+
+        // 检查是否已登陆
+        window.addEventListener('load', function() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                // 已登陆，重定向到对话页面
+                window.location.href = '/chat.html';
+            }
+        });
+    </script>
+</body>
+</html>
+

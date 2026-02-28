@@ -54,6 +54,16 @@ public class ConversationService {
     private final Map<Object, ChatMemory> memoryMap = new HashMap<>();
 
     /**
+     * 会话到用户的映射（sessionId -> userId）
+     */
+    private final Map<String, String> sessionToUserMap = new HashMap<>();
+
+    /**
+     * 用户到会话的映射（userId -> List of sessionIds）
+     */
+    private final Map<String, List<String>> userToSessionsMap = new HashMap<>();
+
+    /**
      * 最大历史消息数量
      */
     private static final int MAX_MESSAGES = 20;
@@ -92,21 +102,26 @@ public class ConversationService {
     }
 
     /**
-     * 发送消息（使用会话 ID 进行记忆）
+     * 发送消息（自定义系统提示和用户 ID）
      */
-    public ChatResponse chat(String message, String sessionId) {
-        return chat(message, sessionId, DEFAULT_SYSTEM_PROMPT);
-    }
-
-    /**
-     * 发送消息（自定义系统提示）
-     */
-    public ChatResponse chat(String message, String sessionId, String systemPrompt) {
+    public ChatResponse chat(String message, String sessionId, String userId, String systemPrompt) {
         try {
             // 如果会话 ID 为空，生成新的
             if (sessionId == null || sessionId.isEmpty()) {
                 sessionId = UUID.randomUUID().toString();
                 logger.info("创建新会话: {}", sessionId);
+            }
+
+            // 如果提供了 userId，关联会话到用户
+            if (userId != null && !userId.isEmpty()) {
+                // 检查是否已经存在这个会话的用户绑定
+                if (!sessionToUserMap.containsKey(sessionId)) {
+                    sessionToUserMap.put(sessionId, userId);
+
+                    // 在用户的会话列表中添加
+                    userToSessionsMap.computeIfAbsent(userId, k -> new ArrayList<>()).add(sessionId);
+                    logger.info("会话 [{}] 已绑定到用户 [{}]", sessionId, userId);
+                }
             }
 
             logger.info("会话 [{}]: {}", sessionId, message);
@@ -131,6 +146,27 @@ public class ConversationService {
     }
 
     /**
+     * 发送消息（使用会话 ID 进行记忆）
+     */
+    public ChatResponse chat(String message, String sessionId) {
+        return chat(message, sessionId, null, DEFAULT_SYSTEM_PROMPT);
+    }
+
+    /**
+     * 发送消息（自定义系统提示）
+     */
+    public ChatResponse chatWithSystemPrompt(String message, String sessionId, String systemPrompt) {
+        return chat(message, sessionId, null, systemPrompt);
+    }
+
+    /**
+     * 发送消息（绑定用户的会话）
+     */
+    public ChatResponse chatWithUser(String message, String sessionId, String userId) {
+        return chat(message, sessionId, userId, DEFAULT_SYSTEM_PROMPT);
+    }
+
+    /**
      * 发送消息（使用 ChatRequest）
      */
     public ChatResponse chat(ChatRequest request) {
@@ -139,7 +175,7 @@ public class ConversationService {
             systemPrompt = DEFAULT_SYSTEM_PROMPT;
         }
 
-        return chat(request.getMessage(), request.getSessionId(), systemPrompt);
+        return chat(request.getMessage(), request.getSessionId(), null, systemPrompt);
     }
 
     /**
@@ -148,6 +184,18 @@ public class ConversationService {
     public void clearHistory(String sessionId) {
         if (sessionId != null && !sessionId.isEmpty()) {
             memoryMap.remove(sessionId);
+
+            // 移除会话到用户的映射
+            String userId = sessionToUserMap.remove(sessionId);
+
+            // 从用户的会话列表中移除
+            if (userId != null) {
+                List<String> userSessions = userToSessionsMap.get(userId);
+                if (userSessions != null) {
+                    userSessions.remove(sessionId);
+                }
+            }
+
             logger.info("已清除会话 [{}] 的历史记录", sessionId);
         }
     }
@@ -180,6 +228,50 @@ public class ConversationService {
      */
     public int getSessionCount() {
         return memoryMap.size();
+    }
+
+    /**
+     * 获取指定用户的所有会话
+     */
+    public List<String> getUserSessions(String userId) {
+        if (userId == null || userId.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<String> sessions = userToSessionsMap.get(userId);
+        return sessions != null ? new ArrayList<>(sessions) : new ArrayList<>();
+    }
+
+    /**
+     * 获取指定会话的用户 ID
+     */
+    public String getSessionUserId(String sessionId) {
+        return sessionToUserMap.get(sessionId);
+    }
+
+    /**
+     * 检查用户是否拥有指定会话
+     */
+    public boolean userOwnSession(String userId, String sessionId) {
+        String owner = sessionToUserMap.get(sessionId);
+        return owner != null && owner.equals(userId);
+    }
+
+    /**
+     * 删除指定用户的所有会话
+     */
+    public void deleteUserAllSessions(String userId) {
+        if (userId == null || userId.isEmpty()) {
+            return;
+        }
+
+        List<String> sessions = userToSessionsMap.remove(userId);
+        if (sessions != null) {
+            for (String sessionId : sessions) {
+                memoryMap.remove(sessionId);
+                sessionToUserMap.remove(sessionId);
+            }
+            logger.info("已删除用户 [{}] 的所有 {} 个会话", userId, sessions.size());
+        }
     }
 }
 
