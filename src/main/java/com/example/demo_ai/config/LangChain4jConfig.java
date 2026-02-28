@@ -24,7 +24,7 @@ public class LangChain4jConfig {
     private String provider;
 
     // 智谱 AI 配置
-    @Value("${langchain4j.zhipu.api-key}")
+    @Value("${langchain4j.zhipu.api-key:}")
     private String zhipuApiKey;
 
     @Value("${langchain4j.zhipu.model-name}")
@@ -40,7 +40,7 @@ public class LangChain4jConfig {
     private Integer zhipuTimeout;
 
     // OpenAI 配置
-    @Value("${langchain4j.openai.api-key}")
+    @Value("${langchain4j.openai.api-key:}")
     private String openaiApiKey;
 
     @Value("${langchain4j.openai.model-name}")
@@ -82,8 +82,23 @@ public class LangChain4jConfig {
      * 创建智谱 AI 模型
      */
     private ChatLanguageModel createZhipuModel() {
+        // 优先从环境变量读取
+        String apiKey = zhipuApiKey;
+        if (apiKey == null || apiKey.isEmpty()) {
+            apiKey = System.getenv("ZHIPU_API_KEY");
+        }
+
+        if (apiKey == null || apiKey.isEmpty()) {
+            throw new IllegalStateException(
+                "智谱 AI API Key 未配置！\n" +
+                "请设置环境变量 ZHIPU_API_KEY 或在 application.yml 中配置 langchain4j.zhipu.api-key"
+            );
+        }
+
+        logger.info("智谱 AI API Key 已配置");
+
         return ZhipuAiChatModel.builder()
-                .apiKey(zhipuApiKey)
+                .apiKey(apiKey)
                 .model(zhipuModelName)
                 .temperature(zhipuTemperature)
                 .maxToken(zhipuMaxTokens)
@@ -94,8 +109,21 @@ public class LangChain4jConfig {
      * 创建 OpenAI 模型
      */
     private ChatLanguageModel createOpenAiModel() {
+        // 优先从环境变量读取
+        String apiKey = openaiApiKey;
+        if (apiKey == null || apiKey.isEmpty()) {
+            apiKey = System.getenv("OPENAI_API_KEY");
+        }
+
+        if (apiKey == null || apiKey.isEmpty()) {
+            throw new IllegalStateException(
+                "OpenAI API Key 未配置！\n" +
+                "请设置环境变量 OPENAI_API_KEY 或在 application.yml 中配置 langchain4j.openai.api-key"
+            );
+        }
+
         return OpenAiChatModel.builder()
-                .apiKey(openaiApiKey)
+                .apiKey(apiKey)
                 .modelName(openaiModelName)
                 .temperature(openaiTemperature)
                 .maxTokens(openaiMaxTokens)

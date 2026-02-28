@@ -7,7 +7,7 @@ langchain4j:
   zhipu:
     # 智谱 AI API Key（从 https://open.bigmodel.cn/ 获取）
     # 使用环境变量：export ZHIPU_API_KEY=your-api-key
-    api-key: ${ZHIPU_API_KEY}
+    api-key: ${ZHIPU_API_KEY:}
     # 模型名称：glm-4（最新）、glm-4-flash（快速）、glm-3-turbo
     model-name: ${ZHIPU_MODEL:glm-4-flash}
     temperature: ${ZHIPU_TEMPERATURE:0.7}
@@ -26,6 +26,24 @@ langchain4j:
     max-tokens: ${OPENAI_MAX_TOKENS:1000}
     # 超时时间（秒）
     timeout: ${OPENAI_TIMEOUT:60}
+
+# 天气服务配置
+weather:
+  # 心知天气 API Key（从 https://www.seniverse.com/ 获取）
+  # 使用环境变量：export SENIVERSE_API_KEY=your-api-key
+  api-key: ${SENIVERSE_API_KEY:}
+  # 默认城市（可选）
+  default-city: ${WEATHER_DEFAULT_CITY:北京}
+
+  # 和风天气 API Key（从 https://dev.qweather.com/ 获取，推荐使用）
+  # 使用环境变量：export QWEATHER_API_KEY=your-api-key
+  qweather-api-key: ${QWEATHER_API_KEY:}
+
+# 地图服务配置（高德地图）
+map:
+  # 高德地图 API Key（从 https://console.amap.com/ 获取）
+  # 使用环境变量：export AMAP_API_KEY=your-api-key
+  api-key: ${AMAP_API_KEY:}
 
 # 服务配置
 server:
