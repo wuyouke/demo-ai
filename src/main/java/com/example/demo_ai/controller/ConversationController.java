@@ -409,6 +409,48 @@ public class ConversationController {
     }
 
     /**
+     * 启用或禁用会话的 RAG 功能
+     */
+    @PostMapping("/rag/{sessionId}/toggle")
+    public ResponseEntity<Map<String, Object>> toggleRag(
+            @PathVariable String sessionId,
+            @RequestParam boolean enabled) {
+        try {
+            conversationService.setRagEnabled(sessionId, enabled);
+            Map<String, Object> result = new HashMap<>();
+            result.put("success", true);
+            result.put("message", "RAG 功能已" + (enabled ? "启用" : "禁用"));
+            result.put("sessionId", sessionId);
+            result.put("ragEnabled", enabled);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            logger.error("RAG 切换失败", e);
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("error", "切换失败: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
+    /**
+     * 获取会话的 RAG 状态
+     */
+    @GetMapping("/rag/{sessionId}/status")
+    public ResponseEntity<Map<String, Object>> getRagStatus(@PathVariable String sessionId) {
+        try {
+            Map<String, Object> status = conversationService.getRagStatus(sessionId);
+            status.put("success", true);
+            return ResponseEntity.ok(status);
+        } catch (Exception e) {
+            logger.error("获取 RAG 状态失败", e);
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("error", "获取失败: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
+    /**
      * 健康检查
      */
     @GetMapping("/health")
@@ -427,6 +469,9 @@ public class ConversationController {
         features.add("天气查询工具");
         features.add("旅游景点工具");
         features.add("角色扮演与提示词工程");
+        features.add("RAG 检索增强生成");
+        features.add("文档管理");
+        features.add("向量检索");
         health.put("features", features);
 
         return ResponseEntity.ok(health);

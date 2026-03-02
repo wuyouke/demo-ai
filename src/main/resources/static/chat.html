@@ -296,6 +296,157 @@
             margin-top: 4px;
             padding: 0 20px;
         }
+        .controls-bar {
+            padding: 12px 25px;
+            border-bottom: 1px solid #eee;
+            background: white;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .control-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .control-item label {
+            font-size: 13px;
+            color: #666;
+            font-weight: 500;
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+            background-color: #ccc;
+            border-radius: 24px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .toggle-switch.active {
+            background-color: #667eea;
+        }
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background-color: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: left 0.3s;
+        }
+        .toggle-switch.active::after {
+            left: 22px;
+        }
+        .doc-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 18px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .doc-btn:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.4);
+            overflow: auto;
+        }
+        .modal.show {
+            display: block;
+        }
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #eee;
+        }
+        .modal-header h2 {
+            margin: 0;
+            font-size: 20px;
+            color: #333;
+        }
+        .close-modal {
+            font-size: 28px;
+            font-weight: bold;
+            color: #999;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+            line-height: 1;
+        }
+        .close-modal:hover {
+            color: #333;
+        }
+        .doc-upload {
+            margin-bottom: 15px;
+        }
+        .doc-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 10px;
+        }
+        .doc-item {
+            padding: 10px;
+            background: #f5f5f5;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+        }
+        .doc-item-name {
+            flex: 1;
+            color: #333;
+            font-weight: 500;
+        }
+        .doc-item-size {
+            color: #999;
+            font-size: 12px;
+            margin: 0 10px;
+        }
+        .doc-delete-btn {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .doc-delete-btn:hover {
+            background: #ff5252;
+        }
     </style>
 </head>
 <body>
@@ -319,6 +470,13 @@
             </select>
         </div>
         <div class="persona-info" id="personaInfo"></div>
+        <div class="controls-bar">
+            <div class="control-item">
+                <label>📄 使用 RAG:</label>
+                <div class="toggle-switch" id="ragToggle" onclick="toggleRag()"></div>
+            </div>
+            <button class="doc-btn" onclick="openDocModal()">📁 文档管理</button>
+        </div>
         <div class="chat-area" id="chatArea"></div>
         <div class="input-area">
             <div class="image-preview-container" id="imagePreviewContainer">
@@ -339,6 +497,32 @@
             </div>
         </div>
         <div class="info" id="info">会话 ID: 新会话</div>
+    </div>
+
+    <!-- 文档管理模态框 -->
+    <div id="docModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📁 文档管理</h2>
+                <button class="close-modal" onclick="closeDocModal()">×</button>
+            </div>
+            <div class="doc-upload">
+                <p style="font-size: 13px; color: #666; margin-bottom: 10px;">上传文档用于 RAG 增强对话:</p>
+                <label style="display: block; padding: 15px; border: 2px dashed #667eea; border-radius: 8px; text-align: center; cursor: pointer; transition: all 0.3s;" onmouseover="this.style.background='#f5f7ff'" onmouseout="this.style.background='white'">
+                    <input type="file" id="docInput" accept=".pdf,.txt,.md,.markdown" onchange="handleDocUpload(event)" style="display: none;">
+                    📤 点击或拖拽上传 (PDF, TXT, Markdown)
+                </label>
+            </div>
+            <div style="margin-bottom: 15px;">
+                <p style="font-size: 13px; color: #666; margin-bottom: 10px;">已上传的文档:</p>
+                <div class="doc-list" id="docList">
+                    <p style="text-align: center; color: #999; font-size: 13px; padding: 20px;">加载中...</p>
+                </div>
+            </div>
+            <div style="text-align: right;">
+                <button onclick="closeDocModal()" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 18px; cursor: pointer;">关闭</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -886,6 +1070,202 @@
             }
         }
 
+        // ============== RAG 功能逻辑 ==============
+        let ragEnabled = false;
+
+        /**
+         * 切换 RAG 功能
+         */
+        function toggleRag() {
+            if (!sessionId) {
+                alert('请先发送一条消息创建会话');
+                return;
+            }
+
+            ragEnabled = !ragEnabled;
+            const toggle = document.getElementById('ragToggle');
+            if (ragEnabled) {
+                toggle.classList.add('active');
+            } else {
+                toggle.classList.remove('active');
+            }
+
+            // 向后端发送 RAG 切换请求
+            fetch('/api/conversation/rag/' + sessionId + '/toggle?enabled=' + ragEnabled, {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + token
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const message = ragEnabled ?
+                        '✅ RAG 已启用！现在我会使用已上传的文档来增强回答。' :
+                        '❌ RAG 已禁用。我将回到标准对话模式。';
+                    addMessage(message, false);
+                    console.log('RAG 状态:', ragEnabled);
+                }
+            })
+            .catch(error => {
+                console.error('切换 RAG 失败:', error);
+                ragEnabled = !ragEnabled;
+                toggle.classList.toggle('active');
+            });
+        }
+
+        /**
+         * 打开文档管理模态框
+         */
+        function openDocModal() {
+            document.getElementById('docModal').classList.add('show');
+            loadDocuments();
+        }
+
+        /**
+         * 关闭文档管理模态框
+         */
+        function closeDocModal() {
+            document.getElementById('docModal').classList.remove('show');
+        }
+
+        /**
+         * 加载已上传的文档列表
+         */
+        function loadDocuments() {
+            fetch('/api/documents/list', {
+                method: 'GET',
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'X-User-Id': userId
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                const docList = document.getElementById('docList');
+                if (data.status === 'success' && data.documents) {
+                    if (data.documents.length === 0) {
+                        docList.innerHTML = '<p style="text-align: center; color: #999; font-size: 13px; padding: 20px;">还没有上传任何文档</p>';
+                    } else {
+                        docList.innerHTML = '';
+                        data.documents.forEach(doc => {
+                            const docItem = document.createElement('div');
+                            docItem.className = 'doc-item';
+                            const sizeKB = (doc.size / 1024).toFixed(2);
+                            docItem.innerHTML = `
+                                <span class="doc-item-name">${doc.name}</span>
+                                <span class="doc-item-size">${sizeKB} KB</span>
+                                <button class="doc-delete-btn" onclick="deleteDocument('${doc.id}')">删除</button>
+                            `;
+                            docList.appendChild(docItem);
+                        });
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('加载文档列表失败:', error);
+                document.getElementById('docList').innerHTML = '<p style="color: red;">加载失败</p>';
+            });
+        }
+
+        /**
+         * 处理文档上传
+         */
+        function handleDocUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // 验证文件类型
+            const validTypes = ['application/pdf', 'text/plain', 'text/markdown'];
+            const validExtensions = ['.pdf', '.txt', '.md', '.markdown'];
+            const fileName = file.name.toLowerCase();
+            const fileExtValid = validExtensions.some(ext => fileName.endsWith(ext));
+
+            if (!fileExtValid) {
+                alert('不支持的文件类型，请上传 PDF、TXT 或 Markdown 文件');
+                event.target.value = '';
+                return;
+            }
+
+            // 验证文件大小 (10MB)
+            if (file.size > 10 * 1024 * 1024) {
+                alert('文件过大，最大支持 10MB');
+                event.target.value = '';
+                return;
+            }
+
+            // 创建 FormData 上传
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // 获取 label 元素（上传按钮的容器）
+            const uploadLabel = event.target.parentElement;
+            const originalText = uploadLabel.textContent;
+            uploadLabel.textContent = '📤 上传中...';
+            uploadLabel.style.pointerEvents = 'none';
+            uploadLabel.style.opacity = '0.6';
+
+            fetch('/api/documents/upload', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'X-User-Id': userId
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                // 恢复按钮状态
+                uploadLabel.textContent = originalText;
+                uploadLabel.style.pointerEvents = 'auto';
+                uploadLabel.style.opacity = '1';
+
+                if (data.status === 'success') {
+                    alert('文档上传成功！');
+                    event.target.value = '';
+                    loadDocuments();
+                } else {
+                    alert('上传失败: ' + (data.error || '未知错误'));
+                }
+            })
+            .catch(error => {
+                console.error('上传失败:', error);
+                // 恢复按钮状态
+                uploadLabel.textContent = originalText;
+                uploadLabel.style.pointerEvents = 'auto';
+                uploadLabel.style.opacity = '1';
+                alert('上传失败: ' + error.message);
+            });
+        }
+
+        /**
+         * 删除文档
+         */
+        function deleteDocument(docId) {
+            if (!confirm('确定要删除该文档吗？')) return;
+
+            fetch('/api/documents/' + docId, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'X-User-Id': userId
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    loadDocuments();
+                    addMessage('✅ 文档已删除，RAG 索引已更新', false);
+                } else {
+                    alert('删除失败: ' + (data.error || '未知错误'));
+                }
+            })
+            .catch(error => {
+                console.error('删除失败:', error);
+                alert('删除失败: ' + error.message);
+            });
+        }
+
         // 页面加载时初始化语音识别
         window.addEventListener('load', function(e) {
             // ... 现有代码 ...
@@ -893,7 +1273,7 @@
         }, false);
 
         // 欢迎消息
-        addMessage('👋 你好！我是 AI 助手，可以帮你查询天气、推荐旅游景点。\n\n💡 **新功能**：\n- 🎭 选择不同角色体验不同的对话风格（资深程序员、心理咨询师、英语翻译官等）\n- 🎤 点击话筒按钮进行语音输入\n- 🔊 点击绿色按钮播放 AI 回复的语音', false);
+        addMessage('👋 你好！我是 AI 助手，可以帮你查询天气、推荐旅游景点。\n\n💡 **新功能**：\n- 🎭 选择不同角色体验不同的对话风格（资深程序员、心理咨询师、英语翻译官等）\n- 📄 **RAG 增强生成**：上传文档后启用 RAG，我会根据文档内容来回答问题\n- 🎤 点击话筒按钮进行语音输入\n- 🔊 点击绿色按钮播放 AI 回复的语音', false);
     </script>
 </body>
 </html>

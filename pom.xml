@@ -84,6 +84,27 @@
 		<version>32.1.3-jre</version>
 	</dependency>
 
+	<!-- LangChain4j Chroma 向量数据库 -->
+	<dependency>
+		<groupId>dev.langchain4j</groupId>
+		<artifactId>langchain4j-chroma</artifactId>
+		<version>${langchain4j.version}</version>
+	</dependency>
+
+	<!-- PDF 文档处理 -->
+	<dependency>
+		<groupId>org.apache.pdfbox</groupId>
+		<artifactId>pdfbox</artifactId>
+		<version>2.0.29</version>
+	</dependency>
+
+	<!-- Apache Commons -->
+	<dependency>
+		<groupId>commons-io</groupId>
+		<artifactId>commons-io</artifactId>
+		<version>2.13.0</version>
+	</dependency>
+
 	<dependency>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-test</artifactId>

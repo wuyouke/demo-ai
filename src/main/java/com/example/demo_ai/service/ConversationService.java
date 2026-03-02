@@ -58,6 +58,9 @@ public class ConversationService {
     @Autowired
     private PersonaManager personaManager;
 
+    @Autowired
+    private RagService ragService;
+
     /**
      * 记忆助手接口（带记忆ID）
      */
@@ -122,6 +125,11 @@ public class ConversationService {
      * 存储每个会话当前的角色ID（sessionId -> personaId）
      */
     private final Map<String, String> sessionPersonaMap = new HashMap<>();
+
+    /**
+     * 存储每个会话是否启用 RAG（sessionId -> boolean）
+     */
+    private final Map<String, Boolean> sessionRagEnabledMap = new HashMap<>();
 
     /**
      * 默认系统提示
@@ -249,6 +257,22 @@ public class ConversationService {
 
         logger.info("流式会话 [{}] (角色: {}): {}", sessionId, currentPersonaId, message);
 
+        // RAG 增强：如果启用了 RAG，则在消息前添加检索到的上下文
+        String augmentedMessage = message;
+        Boolean ragEnabled = sessionRagEnabledMap.getOrDefault(sessionId, false);
+        if (ragEnabled && userId != null && !userId.isEmpty()) {
+            try {
+                RagService.RagContext ragContext = ragService.augmentQuery(userId, message);
+                if (ragContext.isHasContext()) {
+                    augmentedMessage = ragService.generateAugmentedPrompt(message, ragContext.getRetrievedContext());
+                    logger.info("RAG 增强已应用：会话={}, 检索文档数={}", sessionId, ragContext.getSources().size());
+                }
+            } catch (Exception e) {
+                logger.warn("RAG 增强失败，使用原始消息", e);
+                augmentedMessage = message;
+            }
+        }
+
         // 检查是否包含图片，或者是否在询问关于图片的问题
         boolean hasImage = imageBase64 != null && !imageBase64.isEmpty();
         boolean isAskingAboutImage = message != null && (
@@ -269,27 +293,27 @@ public class ConversationService {
                     String base64Data = imageBase64.substring(imageBase64.indexOf(",") + 1);
                     String mimeType = imageBase64.substring(5, imageBase64.indexOf(";"));
                     userMessage = dev.langchain4j.data.message.UserMessage.from(
-                        TextContent.from(message),
+                        TextContent.from(augmentedMessage),
                         ImageContent.from(base64Data, mimeType)
                     );
                 } else {
                     userMessage = dev.langchain4j.data.message.UserMessage.from(
-                        TextContent.from(message),
+                        TextContent.from(augmentedMessage),
                         ImageContent.from(imageBase64, "image/jpeg")
                     );
                 }
                 memory.add(userMessage);
 
                 // 然后通过视觉助手处理（它会看到记忆中的图片）
-                return visionStreamingAssistant.chat(sessionId, message);
+                return visionStreamingAssistant.chat(sessionId, augmentedMessage);
             } else {
                 // 纯文本但查询图片内容，使用视觉助手
-                return visionStreamingAssistant.chat(sessionId, message);
+                return visionStreamingAssistant.chat(sessionId, augmentedMessage);
             }
         }
 
         // 纯文本对话，使用带工具的 Assistant
-        return streamingAssistant.chat(sessionId, message);
+        return streamingAssistant.chat(sessionId, augmentedMessage);
     }
 
     /**
@@ -376,6 +400,7 @@ public class ConversationService {
         if (sessionId != null && !sessionId.isEmpty()) {
             memoryMap.remove(sessionId);
             sessionPersonaMap.remove(sessionId);
+            sessionRagEnabledMap.remove(sessionId);
 
             // 移除会话到用户的映射
             String userId = sessionToUserMap.remove(sessionId);
@@ -461,10 +486,36 @@ public class ConversationService {
             for (String sessionId : sessions) {
                 memoryMap.remove(sessionId);
                 sessionPersonaMap.remove(sessionId);
+                sessionRagEnabledMap.remove(sessionId);
                 sessionToUserMap.remove(sessionId);
             }
             logger.info("已删除用户 [{}] 的所有 {} 个会话", userId, sessions.size());
         }
+    }
+
+    /**
+     * 启用或禁用会话的 RAG 功能
+     */
+    public void setRagEnabled(String sessionId, boolean enabled) {
+        sessionRagEnabledMap.put(sessionId, enabled);
+        logger.info("会话 [{}] RAG 功能已{}启用", sessionId, enabled ? "启用" : "禁用");
+    }
+
+    /**
+     * 检查会话是否启用了 RAG
+     */
+    public boolean isRagEnabled(String sessionId) {
+        return sessionRagEnabledMap.getOrDefault(sessionId, false);
+    }
+
+    /**
+     * 获取会话的 RAG 状态
+     */
+    public Map<String, Object> getRagStatus(String sessionId) {
+        Map<String, Object> status = new HashMap<>();
+        status.put("sessionId", sessionId);
+        status.put("ragEnabled", isRagEnabled(sessionId));
+        return status;
     }
 }
 
