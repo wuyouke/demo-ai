@@ -118,6 +118,50 @@
             align-items: center;
             justify-content: center;
         }
+        .media-preview-container {
+            display: none;
+            padding: 12px;
+            background: #f0f7ff;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+        .media-preview-container.show {
+            display: block;
+        }
+        .media-preview-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 6px 0;
+            padding: 6px 0;
+        }
+        .media-preview-info {
+            flex: 1;
+        }
+        .media-preview-name {
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 2px;
+        }
+        .media-preview-type {
+            font-size: 12px;
+            color: #666;
+        }
+        .media-preview-remove {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-left: 8px;
+        }
+        .media-preview-remove:hover {
+            background: #ee5a5a;
+        }
         .input-group {
             display: flex;
             gap: 10px;
@@ -483,10 +527,21 @@
                 <img id="imagePreview" class="image-preview" src="" alt="Preview">
                 <button class="remove-image-btn" onclick="removeImage()">×</button>
             </div>
+            <div class="media-preview-container" id="mediaPreviewContainer">
+                <div id="mediaPreviewContent"></div>
+            </div>
             <div class="input-group">
                 <label class="upload-btn" title="上传图片">
                     📎
                     <input type="file" id="imageInput" accept="image/*" onchange="handleImageUpload(event)">
+                </label>
+                <label class="upload-btn" title="上传音频">
+                    🎵
+                    <input type="file" id="audioInput" accept="audio/*" onchange="handleAudioUpload(event)">
+                </label>
+                <label class="upload-btn" title="上传视频">
+                    🎬
+                    <input type="file" id="videoInput" accept="video/*" onchange="handleVideoUpload(event)">
                 </label>
                 <button class="voice-btn" id="voiceBtn" title="点击说话" onclick="toggleVoiceInput()">
                     🎤 <span id="voiceStatus">说话</span>
@@ -727,8 +782,346 @@
             document.getElementById('imagePreviewContainer').style.display = 'none';
         }
 
+        // ============== 媒体文件处理 ==============
+        let currentAudioFile = null;
+        let currentVideoFile = null;
+
+        /**
+         * 处理音频文件上传
+         */
+        function handleAudioUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                // 验证文件类型
+                const validTypes = ['audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/ogg', 'audio/m4a'];
+                const fileName = file.name.toLowerCase();
+                const validExtensions = ['.mp3', '.wav', '.m4a', '.ogg', '.flac'];
+                const fileExtValid = validExtensions.some(ext => fileName.endsWith(ext));
+
+                if (!fileExtValid) {
+                    alert('不支持的音频格式，请上传 MP3, WAV, M4A, OGG 等格式');
+                    event.target.value = '';
+                    return;
+                }
+
+                // 验证文件大小 (50MB)
+                if (file.size > 50 * 1024 * 1024) {
+                    alert('音频文件过大，最大支持 50MB');
+                    event.target.value = '';
+                    return;
+                }
+
+                currentAudioFile = file;
+                updateMediaPreview();
+            }
+        }
+
+        /**
+         * 处理视频文件上传
+         */
+        function handleVideoUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                // 验证文件类型
+                const fileName = file.name.toLowerCase();
+                const validExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.flv'];
+                const fileExtValid = validExtensions.some(ext => fileName.endsWith(ext));
+
+                if (!fileExtValid) {
+                    alert('不支持的视频格式，请上传 MP4, MOV, AVI, MKV, WebM 等格式');
+                    event.target.value = '';
+                    return;
+                }
+
+                // 验证文件大小 (200MB)
+                if (file.size > 200 * 1024 * 1024) {
+                    alert('视频文件过大，最大支持 200MB');
+                    event.target.value = '';
+                    return;
+                }
+
+                currentVideoFile = file;
+                updateMediaPreview();
+            }
+        }
+
+        /**
+         * 更新媒体预览
+         */
+        function updateMediaPreview() {
+            const container = document.getElementById('mediaPreviewContainer');
+            const content = document.getElementById('mediaPreviewContent');
+
+            if (!currentAudioFile && !currentVideoFile) {
+                container.classList.remove('show');
+                return;
+            }
+
+            let html = '';
+            if (currentAudioFile) {
+                html += `
+                    <div class="media-preview-item">
+                        <div class="media-preview-info">
+                            <div class="media-preview-name">🎵 ${currentAudioFile.name}</div>
+                            <div class="media-preview-type">音频 · ${(currentAudioFile.size / 1024 / 1024).toFixed(2)} MB</div>
+                        </div>
+                        <button class="media-preview-remove" onclick="removeAudio()">移除</button>
+                    </div>
+                `;
+            }
+
+            if (currentVideoFile) {
+                html += `
+                    <div class="media-preview-item">
+                        <div class="media-preview-info">
+                            <div class="media-preview-name">🎬 ${currentVideoFile.name}</div>
+                            <div class="media-preview-type">视频 · ${(currentVideoFile.size / 1024 / 1024).toFixed(2)} MB</div>
+                        </div>
+                        <button class="media-preview-remove" onclick="removeVideo()">移除</button>
+                    </div>
+                `;
+            }
+
+            content.innerHTML = html;
+            container.classList.add('show');
+        }
+
+        /**
+         * 移除音频文件
+         */
+        function removeAudio() {
+            currentAudioFile = null;
+            document.getElementById('audioInput').value = '';
+            updateMediaPreview();
+        }
+
+        /**
+         * 移除视频文件
+         */
+        function removeVideo() {
+            currentVideoFile = null;
+            document.getElementById('videoInput').value = '';
+            updateMediaPreview();
+        }
+
+        /**
+         * 分析音频文件
+         */
+        async function analyzeAudio() {
+            if (!currentAudioFile) {
+                alert('请先选择音频文件');
+                return;
+            }
+
+            // 禁用上传按钮，显示加载状态
+            const audioBtn = document.querySelector('label[title="上传音频"]');
+            audioBtn.style.opacity = '0.5';
+            audioBtn.style.pointerEvents = 'none';
+
+            const formData = new FormData();
+            formData.append('file', currentAudioFile);
+            formData.append('sessionId', sessionId);
+
+            let loadingMessageId = null;
+
+            try {
+                // 显示加载消息
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message ai';
+                messageDiv.id = 'audio-loading-' + Date.now();
+                loadingMessageId = messageDiv.id;
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+                const fileSizeMB = (currentAudioFile.size / 1024 / 1024).toFixed(2);
+                contentDiv.innerHTML = `<span class="loading"></span>正在上传并分析音频文件...<br><span style="font-size: 13px; color: #999;">文件名：${currentAudioFile.name} | 大小：${fileSizeMB} MB<br>这可能需要 10-30 秒，请稍候</span>`;
+                messageDiv.appendChild(contentDiv);
+                chatArea.appendChild(messageDiv);
+                chatArea.scrollTop = chatArea.scrollHeight;
+
+                console.log('开始上传音频:', currentAudioFile.name);
+                const response = await fetch(`/api/conversation/${sessionId}/analyze-audio`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: formData
+                });
+
+                // 处理未授权情况
+                if (response.status === 401) {
+                    if (loadingMessageId) document.getElementById(loadingMessageId)?.remove();
+                    addMessage('❌ 认证失败，请重新登陆', false);
+                    setTimeout(() => {
+                        window.location.href = '/index.html';
+                    }, 2000);
+                    removeAudio();
+                    return;
+                }
+
+                const responseText = await response.text();
+                console.log('响应内容:', responseText.substring(0, 300));
+
+                // 处理 HTTP 错误
+                if (!response.ok) {
+                    if (loadingMessageId) document.getElementById(loadingMessageId)?.remove();
+                    addMessage('❌ 音频分析失败\n\n错误信息:\n' + responseText, false);
+                    removeAudio();
+                    return;
+                }
+
+                // 解析 JSON 响应
+                try {
+                    const result = JSON.parse(responseText);
+                    if (loadingMessageId) document.getElementById(loadingMessageId)?.remove();
+
+                    if (result.success) {
+                        addMessage('✅ 音频分析完成！\n\n' + result.data, false);
+                    } else {
+                        addMessage('❌ 音频分析失败：' + (result.message || '未知错误'), false);
+                    }
+                    // 无论成功失败都移除音频
+                    removeAudio();
+                } catch (parseError) {
+                    if (loadingMessageId) document.getElementById(loadingMessageId)?.remove();
+                    addMessage('❌ 分析结果解析失败\n\n响应：' + responseText, false);
+                    removeAudio();
+                }
+            } catch (error) {
+                console.error('分析音频失败:', error);
+                if (loadingMessageId) {
+                    const elem = document.getElementById(loadingMessageId);
+                    if (elem) elem.remove();
+                }
+                addMessage('❌ 分析音频出错: ' + error.message + '\n\n请确保音频文件有效且包含真实内容', false);
+                removeAudio();
+            } finally {
+                audioBtn.style.opacity = '1';
+                audioBtn.style.pointerEvents = 'auto';
+            }
+        }
+
+        /**
+         * 分析视频文件
+         */
+        async function analyzeVideo() {
+            if (!currentVideoFile) {
+                alert('请先选择视频文件');
+                return;
+            }
+
+            // 禁用上传按钮，显示加载状态
+            const videoBtn = document.querySelector('label[title="上传视频"]');
+            videoBtn.style.opacity = '0.5';
+            videoBtn.style.pointerEvents = 'none';
+
+            const formData = new FormData();
+            formData.append('file', currentVideoFile);
+            formData.append('sessionId', sessionId);
+
+            let loadingMessageId = null;
+
+            try {
+                // 显示加载消息
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message ai';
+                messageDiv.id = 'video-loading-' + Date.now();
+                loadingMessageId = messageDiv.id;
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+                const fileSizeMB = (currentVideoFile.size / 1024 / 1024).toFixed(2);
+                contentDiv.innerHTML = `<span class="loading"></span>正在上传并分析视频文件...<br><span style="font-size: 13px; color: #999;">文件名：${currentVideoFile.name} | 大小：${fileSizeMB} MB<br>这可能需要 30-60 秒，请稍候</span>`;
+                messageDiv.appendChild(contentDiv);
+                chatArea.appendChild(messageDiv);
+                chatArea.scrollTop = chatArea.scrollHeight;
+
+                console.log('开始上传视频：', currentVideoFile.name);
+                const response = await fetch(`/api/conversation/${sessionId}/analyze-video`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: formData
+                });
+
+                console.log('收到响应，状态码:', response.status);
+
+                // 处理未授权情况
+                if (response.status === 401) {
+                    if (loadingMessageId) document.getElementById(loadingMessageId)?.remove();
+                    addMessage('❌ 认证失败，请重新登陆', false);
+                    setTimeout(() => {
+                        window.location.href = '/index.html';
+                    }, 2000);
+                    removeVideo();
+                    return;
+                }
+
+                const responseText = await response.text();
+                console.log('响应内容：', responseText.substring(0, 300));
+
+                // 处理 HTTP 错误
+                if (!response.ok) {
+                    if (loadingMessageId) document.getElementById(loadingMessageId)?.remove();
+                    addMessage('❌ 视频分析失败\n\n错误信息:\n' + responseText, false);
+                    removeVideo();
+                    return;
+                }
+
+                // 解析 JSON 响应
+                try {
+                    const result = JSON.parse(responseText);
+                    if (loadingMessageId) document.getElementById(loadingMessageId)?.remove();
+
+                    if (result.success) {
+                        addMessage('✅ 视频分析完成！\n\n' + result.data, false);
+                    } else {
+                        addMessage('❌ 视频分析失败：' + (result.message || '未知错误'), false);
+                    }
+                    // 无论成功失败都移除视频
+                    removeVideo();
+                } catch (parseError) {
+                    if (loadingMessageId) document.getElementById(loadingMessageId)?.remove();
+                    addMessage('❌ 分析结果解析失败\n\n响应：' + responseText, false);
+                    removeVideo();
+                }
+            } catch (error) {
+                console.error('分析视频失败:', error);
+                if (loadingMessageId) {
+                    const elem = document.getElementById(loadingMessageId);
+                    if (elem) elem.remove();
+                }
+                addMessage('❌ 分析视频出错：' + (error.message || '未知错误') + '\n\n请确保视频文件有效且包含真实内容', false);
+                removeVideo();
+            } finally {
+                videoBtn.style.opacity = '1';
+                videoBtn.style.pointerEvents = 'auto';
+            }
+        }
+
         async function sendMessage() {
             const message = messageInput.value.trim();
+
+            // 检查是否有媒体文件需要分析
+            if (currentAudioFile) {
+                if (!message) {
+                    analyzeAudio();
+                    return;
+                } else {
+                    // 有音频且有消息，先分析音频，再发送消息
+                    await analyzeAudio();
+                }
+            }
+            if (currentVideoFile) {
+                if (!message) {
+                    analyzeVideo();
+                    return;
+                } else {
+                    // 有视频且有消息，先分析视频，再发送消息
+                    await analyzeVideo();
+                    return; // 分析完成后已经返回，不再继续发送普通消息
+                }
+            }
+
             if (!message && !currentImageBase64) return;
 
             // 显示用户消息

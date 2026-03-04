@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
@@ -451,6 +452,114 @@ public class ConversationController {
     }
 
     /**
+     * 在会话中分析音频文件
+     */
+    @PostMapping("/{sessionId}/analyze-audio")
+    public ResponseEntity<Map<String, Object>> analyzeAudioInConversation(
+            @PathVariable String sessionId,
+            @RequestParam(required = false) MultipartFile file,
+            @RequestParam(required = false) String filePath,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        try {
+            String userId = getCurrentUserId(authHeader);
+            String actualFilePath = filePath;
+
+            // 如果上传了文件，保存到临时位置
+            if (file != null && !file.isEmpty()) {
+                String tempDir = System.getProperty("java.io.tmpdir");
+                String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
+                actualFilePath = tempDir + java.io.File.separator + fileName;
+
+                java.io.File tempFile = new java.io.File(actualFilePath);
+                file.transferTo(tempFile);
+                logger.info("音频文件已保存到临时位置: {}", actualFilePath);
+            }
+
+            String analysisResult = conversationService.analyzeAudioInConversation(actualFilePath, sessionId, userId);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("sessionId", sessionId);
+            response.put("data", analysisResult);
+            response.put("message", "音频已分析并加入对话");
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            logger.error("分析音频失败", e);
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", "音频分析失败");
+            error.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
+    /**
+     * 在会话中分析视频文件
+     */
+    @PostMapping("/{sessionId}/analyze-video")
+    public ResponseEntity<Map<String, Object>> analyzeVideoInConversation(
+            @PathVariable String sessionId,
+            @RequestParam(required = false) MultipartFile file,
+            @RequestParam(required = false) String filePath,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        try {
+            String userId = getCurrentUserId(authHeader);
+            String actualFilePath = filePath;
+
+            // 如果上传了文件，保存到临时位置
+            if (file != null && !file.isEmpty()) {
+                String tempDir = System.getProperty("java.io.tmpdir");
+                String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
+                actualFilePath = tempDir + java.io.File.separator + fileName;
+
+                java.io.File tempFile = new java.io.File(actualFilePath);
+                file.transferTo(tempFile);
+                logger.info("视频文件已保存到临时位置: {}", actualFilePath);
+            }
+
+            String analysisResult = conversationService.analyzeVideoInConversation(actualFilePath, sessionId, userId);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("sessionId", sessionId);
+            response.put("data", analysisResult);
+            response.put("message", "视频已分析并加入对话");
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            logger.error("分析视频失败", e);
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", "视频分析失败");
+            error.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
+    /**
+     * 获取会话的媒体分析能力
+     */
+    @GetMapping("/{sessionId}/media-capabilities")
+    public ResponseEntity<Map<String, Object>> getMediaCapabilities(
+            @PathVariable String sessionId,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        try {
+            Map<String, Object> capabilities = conversationService.getMediaCapabilities();
+            capabilities.put("sessionId", sessionId);
+            capabilities.put("success", true);
+
+            return ResponseEntity.ok(capabilities);
+        } catch (Exception e) {
+            logger.error("获取媒体能力失败", e);
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("error", "获取失败: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
+    /**
      * 健康检查
      */
     @GetMapping("/health")
@@ -472,6 +581,8 @@ public class ConversationController {
         features.add("RAG 检索增强生成");
         features.add("文档管理");
         features.add("向量检索");
+        features.add("音频分析 (智谱 AI)");
+        features.add("视频分析 (智谱 AI)");
         health.put("features", features);
 
         return ResponseEntity.ok(health);

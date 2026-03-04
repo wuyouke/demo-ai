@@ -61,6 +61,12 @@ public class ConversationService {
     @Autowired
     private RagService ragService;
 
+    @Autowired
+    private AudioService audioService;
+
+    @Autowired
+    private VideoService videoService;
+
     /**
      * 记忆助手接口（带记忆ID）
      */
@@ -516,6 +522,171 @@ public class ConversationService {
         status.put("sessionId", sessionId);
         status.put("ragEnabled", isRagEnabled(sessionId));
         return status;
+    }
+
+    /**
+     * 在会话中分析音频文件并自动加入对话
+     */
+    public String analyzeAudioInConversation(String audioFilePath, String sessionId, String userId) {
+        try {
+            logger.info("开始在会话 [{}] 中分析音频文件: {}", sessionId, audioFilePath);
+
+            // 分析音频
+            com.example.demo_ai.model.AudioAnalysisResult audioResult = audioService.analyzeAudioFile(audioFilePath);
+
+            // 构建音频分析总结信息 - 使用更友好的格式
+            StringBuilder audioSummary = new StringBuilder();
+
+            audioSummary.append("### 🎵 音频基本信息\n\n");
+
+            if (audioResult.getTranscript() != null && !audioResult.getTranscript().isEmpty()) {
+                audioSummary.append("**转录内容**: ").append(audioResult.getTranscript()).append("\n\n");
+            } else {
+                audioSummary.append("**转录内容**: 未识别到语音内容\n\n");
+            }
+
+            if (audioResult.getLanguage() != null && !audioResult.getLanguage().isEmpty()) {
+                audioSummary.append("**语言**: ").append(audioResult.getLanguage()).append("\n\n");
+            }
+
+            audioSummary.append("**时长**: ").append(audioResult.getDuration()).append(" 秒\n\n");
+
+            audioSummary.append("### 📊 分析结果\n\n");
+
+            if (audioResult.getSentiment() != null && !audioResult.getSentiment().isEmpty()) {
+                audioSummary.append("**情感倾向**: ").append(audioResult.getSentiment()).append("\n\n");
+            }
+
+            if (audioResult.getKeywords() != null && !audioResult.getKeywords().isEmpty()) {
+                audioSummary.append("**关键词**: ").append(audioResult.getKeywords()).append("\n\n");
+            }
+
+            if (audioResult.getAudioQuality() > 0) {
+                audioSummary.append("**音质评分**: ").append(audioResult.getAudioQuality()).append("/100\n\n");
+            }
+
+            String summary = audioSummary.toString();
+            logger.info("音频分析完成: {}", summary);
+
+            // 如果提供了会话ID，将分析结果加入对话
+            if (sessionId != null && !sessionId.isEmpty()) {
+                String analysisMessage = "我刚刚分析了一个音频文件，以下是分析结果：\n" + summary;
+                streamChat(analysisMessage, sessionId, userId, null);
+            }
+
+            return summary;
+        } catch (Exception e) {
+            logger.error("在会话中分析音频失败", e);
+            throw new RuntimeException("音频分析失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 在会话中分析视频文件并自动加入对话
+     */
+    public String analyzeVideoInConversation(String videoFilePath, String sessionId, String userId) {
+        try {
+            logger.info("开始在会话 [{}] 中分析视频文件: {}", sessionId, videoFilePath);
+
+            // 分析视频
+            com.example.demo_ai.model.VideoAnalysisResult videoResult = videoService.analyzeVideoFile(videoFilePath);
+
+            // 构建视频分析总结信息 - 使用更友好的格式
+            StringBuilder videoSummary = new StringBuilder();
+
+            // 第一部分：基本信息
+            videoSummary.append("###  视频基本信息\n\n");
+            videoSummary.append("**标题**: ").append(videoResult.getTitle() != null && !videoResult.getTitle().isEmpty() ? videoResult.getTitle() : "无标题").append("\n\n");
+
+            if (videoResult.getDescription() != null && !videoResult.getDescription().isEmpty() && !"无".equals(videoResult.getDescription())) {
+                videoSummary.append("**描述**: ").append(videoResult.getDescription()).append("\n\n");
+            }
+
+            videoSummary.append("**时长**: ").append(videoResult.getDuration()).append(" 秒\n\n");
+
+            if (videoResult.getResolution() != null && !videoResult.getResolution().isEmpty() && !"未知".equals(videoResult.getResolution())) {
+                videoSummary.append("**分辨率**: ").append(videoResult.getResolution()).append("\n\n");
+            }
+
+            if (videoResult.getFrameRate() > 0) {
+                videoSummary.append("**帧率**: ").append(videoResult.getFrameRate()).append(" fps\n\n");
+            }
+
+            // 第二部分：内容分析
+            videoSummary.append("### 📊 内容分析\n\n");
+
+            if (videoResult.getSceneDescription() != null && !videoResult.getSceneDescription().isEmpty() && !"无".equals(videoResult.getSceneDescription())) {
+                videoSummary.append("**场景描述**: ").append(videoResult.getSceneDescription()).append("\n\n");
+            }
+
+            if (videoResult.getObjects() != null && !videoResult.getObjects().isEmpty()) {
+                videoSummary.append("**检测物体**: ").append(String.join(", ", videoResult.getObjects())).append("\n\n");
+            }
+
+            if (videoResult.getFaceCount() > 0) {
+                videoSummary.append("**人脸数量**: ").append(videoResult.getFaceCount()).append("\n\n");
+            }
+
+            if (videoResult.getExtractedText() != null && !videoResult.getExtractedText().isEmpty() && !"无".equals(videoResult.getExtractedText())) {
+                videoSummary.append("**提取文字**: ").append(videoResult.getExtractedText()).append("\n\n");
+            }
+
+            if (videoResult.getAudioTranscript() != null && !videoResult.getAudioTranscript().isEmpty() && !"无".equals(videoResult.getAudioTranscript())) {
+                videoSummary.append("**音频转录**: ").append(videoResult.getAudioTranscript()).append("\n\n");
+            }
+
+            // 第三部分：质量评估
+            videoSummary.append("### ⭐ 质量评估\n\n");
+
+            if (videoResult.getQualityScore() > 0) {
+                videoSummary.append("**质量评分**: ").append(videoResult.getQualityScore()).append("/100\n\n");
+            }
+
+            if (videoResult.getSentiment() != null && !videoResult.getSentiment().isEmpty() && !"中立".equals(videoResult.getSentiment())) {
+                videoSummary.append("**情感倾向**: ").append(videoResult.getSentiment()).append("\n\n");
+            }
+
+            if (videoResult.getCategories() != null && !videoResult.getCategories().isEmpty()) {
+                videoSummary.append("**视频分类**: ").append(String.join(", ", videoResult.getCategories())).append("\n\n");
+            }
+
+            String summary = videoSummary.toString();
+            logger.info("视频分析完成: {}", summary);
+
+            // 如果提供了会话ID，将分析结果加入对话
+            if (sessionId != null && !sessionId.isEmpty()) {
+                String analysisMessage = "我刚刚分析了一个视频文件，以下是分析结果：\n" + summary;
+                streamChat(analysisMessage, sessionId, userId, null);
+            }
+
+            return summary;
+        } catch (Exception e) {
+            logger.error("在会话中分析视频失败", e);
+            throw new RuntimeException("视频分析失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 获取媒体分析能力列表
+     */
+    public Map<String, Object> getMediaCapabilities() {
+        Map<String, Object> capabilities = new HashMap<>();
+
+        Map<String, Object> audioCapabilities = new HashMap<>();
+        audioCapabilities.put("enabled", true);
+        audioCapabilities.put("features", new String[]{"语音识别", "语言检测", "情感分析", "关键词提取", "音质评分"});
+        audioCapabilities.put("formats", new String[]{"mp3", "wav", "m4a", "ogg"});
+
+        Map<String, Object> videoCapabilities = new HashMap<>();
+        videoCapabilities.put("enabled", true);
+        videoCapabilities.put("features", new String[]{"视频理解", "物体检测", "人脸检测", "文字提取", "场景识别", "音频转录", "质量评分"});
+        videoCapabilities.put("formats", new String[]{"mp4", "mov", "avi", "mkv", "webm"});
+
+        capabilities.put("audio", audioCapabilities);
+        capabilities.put("video", videoCapabilities);
+        capabilities.put("integrated", true);
+
+        return capabilities;
     }
 }
 

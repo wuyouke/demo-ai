@@ -21,9 +21,15 @@ langchain4j:
     model-name: ${ZHIPU_MODEL:glm-4-flash}
     # 视觉模型名称：专门用于处理图片理解任务
     vision-model-name: ${ZHIPU_VISION_MODEL:glm-4v-plus}
+    # 音频模型名称：用于语音识别和理解
+    audio-model-name: ${ZHIPU_AUDIO_MODEL:glm-4-audio}
+    # 视频模型名称：用于视频理解和分析
+    video-model-name: ${ZHIPU_VIDEO_MODEL:glm-4-video}
     temperature: ${ZHIPU_TEMPERATURE:0.7}
     max-tokens: ${ZHIPU_MAX_TOKENS:1000}
     timeout: ${ZHIPU_TIMEOUT:60}
+    # 音视频处理超时（毫秒）- 10 分钟
+    media-timeout: ${ZHIPU_MEDIA_TIMEOUT:600000}
 
   # OpenAI 配置（如需使用 OpenAI，请配置此项）
   openai:
@@ -58,7 +64,7 @@ map:
 
 # 服务配置
 server:
-  port: 8080
+  port: 8888
   # Tomcat 编码配置
   tomcat:
     uri-encoding: UTF-8

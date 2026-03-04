@@ -36,6 +36,7 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/auth/verify",
                         "/api/auth/me",
                         "/api/chat/health",
+                        "/api/media/**",  // 媒体 API 暂不需要认证（可根据需求调整）
                         "/static/**",
                         "/index.html",
                         "/chat.html"
