@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能代理系统 - 总控面板</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 50px;
+        }
+
+        .header h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.95;
+        }
+
+        .systems-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .system-card {
+            background: white;
+            border-radius: 12px;
+            padding: 40px 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .system-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .system-icon {
+            font-size: 3.5em;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .system-title {
+            font-size: 1.8em;
+            color: #667eea;
+            margin-bottom: 15px;
+            font-weight: 700;
+        }
+
+        .system-description {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            flex-grow: 1;
+        }
+
+        .system-features {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 0.95em;
+        }
+
+        .system-features li {
+            margin: 8px 0;
+            margin-left: 20px;
+        }
+
+        .system-features li:before {
+            content: "✓ ";
+            color: #4caf50;
+            font-weight: bold;
+        }
+
+        .system-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 6px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .system-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .system-btn:active {
+            transform: translateY(0);
+        }
+
+        .comparison-section {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-bottom: 40px;
+        }
+
+        .comparison-section h2 {
+            color: #667eea;
+            font-size: 2em;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .comparison-table th {
+            background: #f5f5f5;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .comparison-table tr:hover {
+            background: #f9f9f9;
+        }
+
+        .checkmark {
+            color: #4caf50;
+            font-weight: bold;
+        }
+
+        .cross {
+            color: #f44336;
+            font-weight: bold;
+        }
+
+        .footer-section {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            text-align: center;
+        }
+
+        .footer-section h2 {
+            color: #667eea;
+            font-size: 1.8em;
+            margin-bottom: 20px;
+        }
+
+        .quick-links {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .quick-link {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 6px;
+            text-decoration: none;
+            color: #667eea;
+            font-weight: 600;
+            transition: all 0.3s;
+            border: 2px solid #f5f5f5;
+        }
+
+        .quick-link:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .systems-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .comparison-table {
+                font-size: 0.9em;
+            }
+
+            .comparison-table th,
+            .comparison-table td {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <div class="header">
+            <h1>🤖 智能代理系统</h1>
+            <p>Task 任务规划 + Workflow 工作流编排</p>
+        </div>
+
+        <!-- 系统选择 -->
+        <div class="systems-grid">
+            <!-- Task 规划系统 -->
+            <div class="system-card">
+                <div class="system-icon">📋</div>
+                <div class="system-title">Task 规划系统</div>
+                <div class="system-description">
+                    AI 智能分解复杂目标为可执行的子任务，支持依赖管理、并行执行和实时监控。
+                </div>
+                <ul class="system-features">
+                    <li>AI 智能分解目标</li>
+                    <li>任务依赖管理</li>
+                    <li>并行执行</li>
+                    <li>实时状态轮询</li>
+                    <li>结果可视化展示</li>
+                </ul>
+                <a href="/task-planning.html" class="system-btn">进入系统</a>
+            </div>
+
+            <!-- Workflow 系统 -->
+            <div class="system-card">
+                <div class="system-icon">🔄</div>
+                <div class="system-title">Workflow 工作流</div>
+                <div class="system-description">
+                    支持复杂的流程编排，包括条件分支、循环迭代、失败重试和并发控制。
+                </div>
+                <ul class="system-features">
+                    <li>可视化工作流编辑</li>
+                    <li>条件决策分支</li>
+                    <li>循环和重试</li>
+                    <li>并行执行</li>
+                    <li>完整的生命周期管理</li>
+                </ul>
+                <a href="/workflow-editor.html" class="system-btn">打开编辑器</a>
+            </div>
+
+            <!-- 示例和文档 -->
+            <div class="system-card">
+                <div class="system-icon">📚</div>
+                <div class="system-title">使用示例</div>
+                <div class="system-description">
+                    查看工作流系统的详细说明、API 文档和交互式演示。
+                </div>
+                <ul class="system-features">
+                    <li>功能介绍</li>
+                    <li>API 文档</li>
+                    <li>使用指南</li>
+                    <li>交互式演示</li>
+                    <li>最佳实践</li>
+                </ul>
+                <a href="/workflow-demo.html" class="system-btn">查看示例</a>
+            </div>
+        </div>
+
+        <!-- 对比表格 -->
+        <div class="comparison-section">
+            <h2>📊 Task vs Workflow 对比</h2>
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>功能特性</th>
+                        <th>Task 规划系统</th>
+                        <th>Workflow 工作流</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>粒度</strong></td>
+                        <td>原子操作</td>
+                        <td>流程编排</td>
+                    </tr>
+                    <tr>
+                        <td><strong>AI 智能分解</strong></td>
+                        <td class="checkmark">✓</td>
+                        <td class="cross">✗</td>
+                    </tr>
+                    <tr>
+                        <td><strong>条件分支</strong></td>
+                        <td class="cross">✗</td>
+                        <td class="checkmark">✓</td>
+                    </tr>
+                    <tr>
+                        <td><strong>循环迭代</strong></td>
+                        <td class="cross">✗</td>
+                        <td class="checkmark">✓</td>
+                    </tr>
+                    <tr>
+                        <td><strong>失败重试</strong></td>
+                        <td>基础</td>
+                        <td class="checkmark">指数退避</td>
+                    </tr>
+                    <tr>
+                        <td><strong>依赖管理</strong></td>
+                        <td class="checkmark">✓</td>
+                        <td class="checkmark">✓</td>
+                    </tr>
+                    <tr>
+                        <td><strong>并行执行</strong></td>
+                        <td class="checkmark">✓</td>
+                        <td class="checkmark">✓</td>
+                    </tr>
+                    <tr>
+                        <td><strong>实时监控</strong></td>
+                        <td class="checkmark">✓</td>
+                        <td class="checkmark">✓</td>
+                    </tr>
+                    <tr>
+                        <td><strong>可视化编辑</strong></td>
+                        <td class="cross">✗</td>
+                        <td class="checkmark">✓</td>
+                    </tr>
+                    <tr>
+                        <td><strong>执行时间</strong></td>
+                        <td>秒级</td>
+                        <td>秒到天级</td>
+                    </tr>
+                    <tr>
+                        <td><strong>典型场景</strong></td>
+                        <td>天气+景点推荐</td>
+                        <td>订单处理、审批流</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 快速导航 -->
+        <div class="footer-section">
+            <h2>⚡ 快速导航</h2>
+            <div class="quick-links">
+                <a href="/" class="quick-link">🏠 首页</a>
+                <a href="/task-planning.html" class="quick-link">📋 任务规划</a>
+                <a href="/workflow-editor.html" class="quick-link">🔄 工作流</a>
+                <a href="/workflow-demo.html" class="quick-link">📚 示例</a>
+                <a href="/api/tasks/plan" class="quick-link">🔌 API</a>
+            </div>
+            <div style="margin-top: 30px; color: #999; font-size: 0.95em;">
+                <p>💡 提示：选择合适的系统来满足您的需求</p>
+                <p>• <strong>快速目标</strong> → 使用 Task 规划系统</p>
+                <p>• <strong>复杂流程</strong> → 使用 Workflow 工作流</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+

@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作流编辑器</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 250px 1fr 300px;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .panel h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .node-palette {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .node-type {
+            padding: 12px;
+            border: 2px solid #667eea;
+            border-radius: 6px;
+            cursor: move;
+            text-align: center;
+            font-weight: 600;
+            color: #667eea;
+            background: #f0f4ff;
+            transition: all 0.3s;
+        }
+
+        .node-type:hover {
+            background: #667eea;
+            color: white;
+            transform: scale(1.05);
+        }
+
+        #canvas {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            background: #fafafa;
+            position: relative;
+            min-height: 600px;
+            overflow: auto;
+        }
+
+        .workflow-node {
+            position: absolute;
+            padding: 15px;
+            border: 2px solid #667eea;
+            border-radius: 6px;
+            background: white;
+            min-width: 120px;
+            cursor: grab;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s;
+        }
+
+        .workflow-node:hover {
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+            border-color: #764ba2;
+        }
+
+        .workflow-node.start {
+            background: #d4edda;
+            border-color: #4caf50;
+        }
+
+        .workflow-node.end {
+            background: #f8d7da;
+            border-color: #f44336;
+        }
+
+        .workflow-node.decision {
+            background: #fff3cd;
+            border-color: #ffc107;
+            clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
+        }
+
+        .node-label {
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 8px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .node-controls {
+            display: flex;
+            gap: 5px;
+            justify-content: center;
+            font-size: 0.8em;
+        }
+
+        .node-btn {
+            padding: 4px 8px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            background: #667eea;
+            color: white;
+            font-size: 0.9em;
+        }
+
+        .node-btn:hover {
+            background: #764ba2;
+        }
+
+        .properties-panel {
+            background: #f9f9f9;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .property-group {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .property-label {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+
+        .property-input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            flex: 1;
+            min-width: 100px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-success {
+            background: #4caf50;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #45a049;
+        }
+
+        .alert {
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .workflow-info {
+            background: #f0f4ff;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+
+        .workflow-info div {
+            margin: 5px 0;
+            font-size: 0.95em;
+        }
+
+        .workflow-info strong {
+            color: #667eea;
+        }
+
+        svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+
+        @media (max-width: 1200px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div style="text-align: center; margin-bottom: 20px;">
+            <a href="/index-dashboard.html" style="color: white; text-decoration: none; font-size: 0.95em; opacity: 0.9; margin-right: 20px;">← 返回总控面板</a>
+            <a href="/task-planning.html" style="color: white; text-decoration: none; font-size: 0.95em; opacity: 0.9;">📋 查看任务规划系统 →</a>
+        </div>
+
+        <div class="header">
+            <h1>🔄 工作流编辑器</h1>
+            <p>拖拽节点、连接流程、执行工作流</p>
+        </div>
+
+        <div class="main-layout">
+            <!-- 左侧：节点面板 -->
+            <div class="panel">
+                <h2>📦 节点库</h2>
+                <div class="node-palette">
+                    <div class="node-type" draggable="true" data-type="START">▶ 开始</div>
+                    <div class="node-type" draggable="true" data-type="END">⏹ 结束</div>
+                    <div class="node-type" draggable="true" data-type="TASK">⚙ 任务</div>
+                    <div class="node-type" draggable="true" data-type="DECISION">◇ 决策</div>
+                    <div class="node-type" draggable="true" data-type="LOOP">🔁 循环</div>
+                    <div class="node-type" draggable="true" data-type="RETRY">🔄 重试</div>
+                    <div class="node-type" draggable="true" data-type="WAIT">⏳ 等待</div>
+                    <div class="node-type" draggable="true" data-type="PARALLEL">⚡ 并行</div>
+                </div>
+            </div>
+
+            <!-- 中间：画布 -->
+            <div class="panel" style="padding: 0; overflow: hidden;">
+                <svg id="connections"></svg>
+                <div id="canvas"></div>
+            </div>
+
+            <!-- 右侧：属性和操作 -->
+            <div class="panel">
+                <h2>⚙️ 工作流配置</h2>
+
+                <div id="alert-container"></div>
+
+                <div class="workflow-info">
+                    <div><strong>工作流ID:</strong> <span id="workflow-id">-</span></div>
+                    <div><strong>名称:</strong> <span id="workflow-name">-</span></div>
+                    <div><strong>节点数:</strong> <span id="node-count">0</span></div>
+                    <div><strong>状态:</strong> <span id="workflow-status">待创建</span></div>
+                </div>
+
+                <div class="property-group">
+                    <div class="property-label">工作流名称</div>
+                    <input type="text" id="workflow-name-input" class="property-input" placeholder="输入工作流名称">
+                </div>
+
+                <div class="property-group">
+                    <div class="property-label">工作流描述</div>
+                    <textarea class="property-input" id="workflow-desc-input" placeholder="输入工作流描述" style="min-height: 80px; resize: none;"></textarea>
+                </div>
+
+                <div id="selected-node-props" style="display: none;">
+                    <h3 style="margin-top: 15px; margin-bottom: 10px; color: #667eea;">选中节点属性</h3>
+                    <div class="property-group">
+                        <div class="property-label">节点名称</div>
+                        <input type="text" id="node-name-input" class="property-input" placeholder="节点名称">
+                    </div>
+                    <div class="property-group">
+                        <div class="property-label">节点配置 (JSON)</div>
+                        <textarea class="property-input" id="node-config-input" placeholder="{}" style="min-height: 100px; resize: none; font-family: monospace;"></textarea>
+                    </div>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="createWorkflow()">✨ 创建工作流</button>
+                    <button class="btn btn-secondary" onclick="resetCanvas()">🗑️ 清空</button>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn btn-success" onclick="executeWorkflow()" style="flex: 1;">▶ 执行</button>
+                </div>
+
+                <div style="margin-top: 20px;">
+                    <h3 style="color: #667eea; margin-bottom: 10px;">📊 执行状态</h3>
+                    <div id="execution-status" style="background: #f9f9f9; padding: 15px; border-radius: 6px; min-height: 100px; max-height: 200px; overflow-y: auto; font-size: 0.9em; line-height: 1.6;">
+                        暂无执行信息
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let workflow = null;
+        let selectedNode = null;
+        let nodes = [];
+        let isDragging = false;
+        let draggedNodeType = null;
+        let token = null;
+        let userId = null;
+
+        const canvas = document.getElementById('canvas');
+        const connections = document.getElementById('connections');
+
+        // 初始化认证信息
+        window.addEventListener('load', function() {
+            token = localStorage.getItem('token');
+            userId = localStorage.getItem('userId');
+
+            if (!token || !userId) {
+                window.location.href = '/index.html';
+            }
+
+            // 配置 axios 默认请求头
+            axios.defaults.headers.common['Authorization'] = 'Bearer ' + token;
+            axios.defaults.headers.common['X-User-Id'] = userId;
+        });
+
+        // 节点拖拽开始
+        document.addEventListener('dragstart', (e) => {
+            if (e.target.classList.contains('node-type')) {
+                draggedNodeType = e.target.dataset.type;
+                e.dataTransfer.effectAllowed = 'copy';
+                e.dataTransfer.setData('text/plain', draggedNodeType);
+            }
+        });
+
+        // 画布拖拽释放
+        canvas.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+        });
+
+        canvas.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (draggedNodeType) {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                addNode(draggedNodeType, x, y);
+                draggedNodeType = null;
+            }
+        });
+
+        // 添加节点
+        function addNode(type, x, y, isAutoAdd = false) {
+            if (!workflow && !isAutoAdd) {
+                showAlert('请先创建工作流', 'error');
+                return;
+            }
+
+            const nodeDiv = document.createElement('div');
+            const nodeId = 'node-' + Date.now();
+            nodeDiv.className = `workflow-node ${type.toLowerCase()}`;
+            nodeDiv.id = nodeId;
+            nodeDiv.style.left = x + 'px';
+            nodeDiv.style.top = y + 'px';
+
+            const labelMap = {
+                'START': '▶ 开始',
+                'END': '⏹ 结束',
+                'TASK': '⚙ 任务',
+                'DECISION': '◇ 决策',
+                'LOOP': '🔁 循环',
+                'RETRY': '🔄 重试',
+                'WAIT': '⏳ 等待',
+                'PARALLEL': '⚡ 并行'
+            };
+
+            nodeDiv.innerHTML = `
+                <div class="node-label">${labelMap[type] || type}</div>
+                <div class="node-controls">
+                    <button class="node-btn" onclick="selectNode('${nodeId}')">编辑</button>
+                    <button class="node-btn" onclick="deleteNode('${nodeId}')">删除</button>
+                </div>
+            `;
+
+            canvas.appendChild(nodeDiv);
+
+            // 添加拖拽移动
+            makeNodeDraggable(nodeDiv);
+
+            const node = { nodeId, type, x, y, name: labelMap[type], config: {} };
+            nodes.push(node);
+            updateNodeCount();
+
+            showAlert(`已添加 ${labelMap[type]} 节点`, 'success');
+        }
+
+        // 使节点可拖拽
+        function makeNodeDraggable(nodeDiv) {
+            let offsetX, offsetY;
+
+            nodeDiv.addEventListener('mousedown', (e) => {
+                if (e.target.classList.contains('node-btn')) return;
+                isDragging = true;
+                const rect = nodeDiv.getBoundingClientRect();
+                const canvasRect = canvas.getBoundingClientRect();
+                offsetX = e.clientX - rect.left;
+                offsetY = e.clientY - rect.top;
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const canvasRect = canvas.getBoundingClientRect();
+                nodeDiv.style.left = (e.clientX - canvasRect.left - offsetX) + 'px';
+                nodeDiv.style.top = (e.clientY - canvasRect.top - offsetY) + 'px';
+            });
+
+            document.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+        }
+
+        // 选择节点
+        function selectNode(nodeId) {
+            document.querySelectorAll('.workflow-node').forEach(n => {
+                n.style.borderWidth = '2px';
+            });
+            document.getElementById(nodeId).style.borderWidth = '3px';
+            document.getElementById(nodeId).style.borderColor = '#764ba2';
+
+            const node = nodes.find(n => n.nodeId === nodeId);
+            selectedNode = node;
+
+            // 显示节点属性
+            document.getElementById('selected-node-props').style.display = 'block';
+            document.getElementById('node-name-input').value = node.name;
+            document.getElementById('node-config-input').value = JSON.stringify(node.config, null, 2);
+        }
+
+        // 删除节点
+        function deleteNode(nodeId) {
+            document.getElementById(nodeId).remove();
+            nodes = nodes.filter(n => n.nodeId !== nodeId);
+            selectedNode = null;
+            document.getElementById('selected-node-props').style.display = 'none';
+            updateNodeCount();
+        }
+
+        // 创建工作流
+        async function createWorkflow() {
+            const name = document.getElementById('workflow-name-input').value.trim();
+            if (!name) {
+                showAlert('请输入工作流名称', 'error');
+                return;
+            }
+
+            const description = document.getElementById('workflow-desc-input').value.trim();
+
+            try {
+                const res = await axios.post('/api/workflows/create', { name, description });
+                workflow = res.data;
+                document.getElementById('workflow-id').textContent = workflow.workflowId;
+                document.getElementById('workflow-name').textContent = workflow.name;
+                document.getElementById('workflow-status').textContent = 'PENDING';
+                showAlert(`✅ 工作流已创建: ${workflow.workflowId}`, 'success');
+
+                // 自动添加 START 和 END 节点
+                await addDefaultNodes();
+            } catch (err) {
+                showAlert('❌ 创建失败: ' + (err.response?.data?.error || err.message), 'error');
+            }
+        }
+
+        // 添加默认的 START 和 END 节点
+        async function addDefaultNodes() {
+            if (!workflow) return;
+
+            try {
+                // 添加 START 节点
+                const startNode = { name: '▶ 开始', type: 'START', config: {} };
+                const startRes = await axios.post(`/api/workflows/${workflow.workflowId}/nodes`, startNode);
+                const startNodeId = startRes.data.nodeId;
+
+                // 在画布上绘制 START 节点
+                addNode('START', 50, 100);
+
+                // 等待一下
+                await new Promise(resolve => setTimeout(resolve, 300));
+
+                // 添加 END 节点
+                const endNode = { name: '⏹ 结束', type: 'END', config: {} };
+                const endRes = await axios.post(`/api/workflows/${workflow.workflowId}/nodes`, endNode);
+                const endNodeId = endRes.data.nodeId;
+
+                // 在画布上绘制 END 节点
+                addNode('END', 50, 300);
+
+                // 等待一下
+                await new Promise(resolve => setTimeout(resolve, 300));
+
+                // 连接 START 到 END
+                const connectRes = await axios.post(`/api/workflows/${workflow.workflowId}/connect`, {
+                    fromNodeId: startNodeId,
+                    toNodeId: endNodeId
+                });
+
+                showAlert('✅ 已自动添加 START → END 连接', 'success');
+            } catch (err) {
+                const errorMsg = err.response?.data?.error || err.message;
+                console.error('自动配置失败:', errorMsg);
+
+                if (err.response?.status === 429) {
+                    showAlert('⚠️ 请求过于频繁，请稍候重试', 'error');
+                } else {
+                    showAlert('⚠️ 自动配置失败: ' + errorMsg, 'error');
+                }
+            }
+        }
+
+        // 执行工作流
+        function executeWorkflow() {
+            if (!workflow) {
+                showAlert('请先创建工作流', 'error');
+                return;
+            }
+
+            axios.post(`/api/workflows/${workflow.workflowId}/execute`)
+                .then(res => {
+                    showAlert('✅ 工作流已启动执行', 'success');
+                    updateExecutionStatus();
+                })
+                .catch(err => {
+                    showAlert('❌ 执行失败: ' + (err.response?.data?.error || err.message), 'error');
+                });
+        }
+
+        // 更新执行状态
+        function updateExecutionStatus() {
+            if (!workflow) return;
+
+            axios.get(`/api/workflows/${workflow.workflowId}/status`)
+                .then(res => {
+                    const data = res.data;
+                    const statusHtml = `
+                        <strong>工作流状态:</strong> ${data.status}<br>
+                        <strong>节点总数:</strong> ${data.nodeCount}<br><br>
+                        <strong>节点详情:</strong><br>
+                    `;
+                    let nodesHtml = '';
+                    for (const [nodeId, nodeInfo] of Object.entries(data.nodes)) {
+                        nodesHtml += `
+                            <div style="margin: 5px 0; padding: 8px; background: white; border-radius: 4px;">
+                                <strong>${nodeInfo.name}</strong> (${nodeInfo.type})<br>
+                                状态: ${nodeInfo.status}
+                            </div>
+                        `;
+                    }
+                    document.getElementById('execution-status').innerHTML = statusHtml + nodesHtml;
+
+                    if (data.status !== 'COMPLETED' && data.status !== 'FAILED') {
+                        setTimeout(updateExecutionStatus, 2000);
+                    }
+                });
+        }
+
+        // 清空画布
+        function resetCanvas() {
+            canvas.innerHTML = '';
+            nodes = [];
+            selectedNode = null;
+            workflow = null;
+            document.getElementById('workflow-id').textContent = '-';
+            document.getElementById('workflow-name').textContent = '-';
+            document.getElementById('workflow-status').textContent = '待创建';
+            document.getElementById('selected-node-props').style.display = 'none';
+            document.getElementById('workflow-name-input').value = '';
+            document.getElementById('workflow-desc-input').value = '';
+            updateNodeCount();
+        }
+
+        // 更新节点计数
+        function updateNodeCount() {
+            document.getElementById('node-count').textContent = nodes.length;
+        }
+
+        // 显示提示
+        function showAlert(message, type) {
+            const container = document.getElementById('alert-container');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            container.appendChild(alert);
+            setTimeout(() => alert.remove(), 3000);
+        }
+    </script>
+</body>
+</html>
+
