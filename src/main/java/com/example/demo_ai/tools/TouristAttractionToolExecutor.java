@@ -36,19 +36,24 @@ public class TouristAttractionToolExecutor implements ToolExecutor {
             String action = (String) params.get("action");
             String result;
 
-            switch (action) {
-                case "free":
-                    result = queryFreeAttractions(city);
-                    break;
-                case "recommended":
-                    result = queryRecommendedAttractions(city);
-                    break;
-                case "type":
-                    String type = (String) params.get("type");
-                    result = queryAttractionsByType(city, type);
-                    break;
-                default:
-                    result = queryAttractions(city);
+            // 处理 null action，默认查询所有景点
+            if (action == null || action.isEmpty()) {
+                result = queryAttractions(city);
+            } else {
+                switch (action) {
+                    case "free":
+                        result = queryFreeAttractions(city);
+                        break;
+                    case "recommended":
+                        result = queryRecommendedAttractions(city);
+                        break;
+                    case "type":
+                        String type = (String) params.get("type");
+                        result = queryAttractionsByType(city, type);
+                        break;
+                    default:
+                        result = queryAttractions(city);
+                }
             }
 
             long endTime = System.currentTimeMillis();
